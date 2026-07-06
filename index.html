@@ -15,11 +15,11 @@
     --surface: #131317;
     --surface-2: #1a1a1f;
     --line: #2a2a30;
-    --text: #e9e9ec;
-    --text-dim: #7a7a83;
-    --text-faint: #4d4d54;
-    --accent: #8fa8c2;
-    --accent-dim: #8fa8c22b;
+    --text: #ffffff;
+    --text-dim: #a8a8b5;
+    --text-faint: #74747f;
+    --accent: #4a8fe8;
+    --accent-dim: #4a8fe82b;
     --correct: #7fae8f;
     --correct-dim: #7fae8f22;
     --wrong: #c97b7b;
@@ -92,15 +92,15 @@
   /* ---------- Module list (LES-style) ---------- */
   .module-row{
     display:flex; align-items:center; justify-content:space-between; gap:14px;
-    padding:16px 4px; border-bottom:1px solid var(--line); cursor:pointer;
+    padding:16px 4px; border-bottom:1px solid var(--line);
   }
-  .module-row:hover .module-name{ color:var(--accent); }
   .module-row:first-child{ border-top:1px solid var(--line); }
-  .module-row .module-name{ font-size:1rem; color:var(--text); font-weight:500; margin-bottom:4px; }
+  .module-row .module-name{ font-size:1rem; color:var(--text); font-weight:600; margin-bottom:4px; }
   .module-row .module-sub{ font-size:.8rem; color:var(--text-dim); }
   .module-row .module-right{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
   .module-row .module-status{ font-size:.8rem; color:var(--text-dim); white-space:nowrap; }
-  .module-row .btn-mini{ flex-shrink:0; }
+  .module-row .module-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+  .module-row .btn-mini{ flex-shrink:0; text-align:center; }
 
   /* ---------- Home dashboard: due today ---------- */
   .due-today-row{
@@ -527,8 +527,8 @@
 
 <div class="app-layout">
 <aside class="sidebar" id="sidebar">
-  <button class="sidebar-item active" data-view="home">🏠 Trang chủ</button>
-  <div class="sidebar-section-label">Môn học</div>
+  <button class="sidebar-item active" data-view="home">🏠 Home</button>
+  <div class="sidebar-section-label">Subjects</div>
   <!-- Subject items injected by JS from the SUBJECTS list -->
 </aside>
 
@@ -536,8 +536,8 @@
 
   <!-- ============ HOME DASHBOARD ============ -->
   <section class="panel active" id="view-home">
-    <h2 class="section-title">Trang chủ</h2>
-    <p class="section-hint">Tổng quan toàn bộ các môn — chọn 1 môn ở sidebar để xem chi tiết và retry.</p>
+    <h2 class="section-title">Home</h2>
+    <p class="section-hint">Overview across all subjects — pick a subject in the sidebar to see details and retry.</p>
 
     <div class="stat-row">
       <div class="stat-card"><div class="num" id="an-unresolved">—</div><div class="lbl">Unresolved mistakes</div></div>
@@ -547,7 +547,7 @@
     </div>
 
     <div class="chart-card">
-      <h3>Cần retry hôm nay</h3>
+      <h3>Due Today</h3>
       <div id="due-today-list"></div>
     </div>
 
@@ -579,11 +579,16 @@
       <h2 id="subject-title">Subject</h2>
       <button class="btn-add-mistake" id="add-mistake-btn-subject">+ Add wrong questions</button>
     </div>
-    <p class="section-hint">Chọn module để xem các câu đã sai trong module đó.</p>
+    <p class="section-hint">Select a module to view the wrong questions logged in it.</p>
 
     <div id="module-list"></div>
 
-    <div class="empty-state" id="module-list-empty" style="display:none;">Chưa có câu sai nào trong môn này — bấm "+ Add wrong questions" để bắt đầu.</div>
+    <div class="empty-state" id="module-list-empty" style="display:none;">No wrong questions logged in this subject yet — click "+ Add wrong questions" to get started.</div>
+
+    <div class="retry-set-bar hidden" id="retry-course-bar">
+      <span class="rsb-text"><b id="retry-course-count">0</b> wrong questions in this subject</span>
+      <button id="retry-course-btn">Retry this Course</button>
+    </div>
   </section>
 
   <!-- ============ MODULE VIEW: QUESTIONS WITHIN A MODULE ============ -->
@@ -616,7 +621,7 @@
       </label>
       <label class="overdue-toggle">
         <input type="checkbox" id="show-resolved-only">
-        Hiện câu đã resolve
+        Show resolved questions
       </label>
     </div>
 
@@ -762,11 +767,11 @@
 
   <div class="rs-overlay hidden" id="confirm-overlay">
     <div class="rs-modal confirm-modal">
-      <div class="confirm-title">Xoá câu hỏi này?</div>
-      <div class="confirm-body">Hành động này không thể hoàn tác — toàn bộ lịch sử retry của câu hỏi cũng sẽ bị xoá.</div>
+      <div class="confirm-title">Delete this question?</div>
+      <div class="confirm-body">This action cannot be undone — the question's entire retry history will be deleted too.</div>
       <div class="confirm-actions">
-        <button class="btn-mini" id="confirm-cancel-btn">Huỷ</button>
-        <button class="btn-mini btn-danger" id="confirm-delete-btn">Xoá</button>
+        <button class="btn-mini" id="confirm-cancel-btn">Cancel</button>
+        <button class="btn-mini btn-danger" id="confirm-delete-btn">Delete</button>
       </div>
     </div>
   </div>
@@ -808,7 +813,7 @@
   let currentView = 'home';   // 'home' | 'subject' (module list) | 'module' (questions in a module)
   let currentSubject = null;  // subject name when currentView is 'subject' or 'module'
   let currentModule = null;   // module name when currentView === 'module'
-  const UNCATEGORIZED = 'Chưa phân loại';
+  const UNCATEGORIZED = 'Uncategorized';
 
   function buildSidebar(){
     const sidebar = document.getElementById('sidebar');
@@ -1125,7 +1130,7 @@
     const id = pendingDeleteId;
     try{
       await mistakesCollection().doc(id).delete();
-      showToast('Đã xoá câu hỏi');
+      showToast('Question deleted');
     } catch(err){
       console.error('[Firestore]', err.message);
       showToast('Could not delete: ' + err.message, true);
@@ -1164,10 +1169,12 @@
 
     const container = document.getElementById('module-list');
     const bySubject = allMistakes.filter(m=> m.subject === currentSubject);
+    const courseBar = document.getElementById('retry-course-bar');
 
     if(bySubject.length === 0){
       container.innerHTML = '';
       document.getElementById('module-list-empty').style.display = 'block';
+      courseBar.classList.add('hidden');
       return;
     }
     document.getElementById('module-list-empty').style.display = 'none';
@@ -1194,21 +1201,56 @@
         <div class="module-row" data-module="${name}">
           <div>
             <div class="module-name">${name}</div>
-            <div class="module-sub">${stats.total} câu sai đã ghi nhận</div>
+            <div class="module-sub">${stats.total} wrong question${stats.total>1?'s':''} logged</div>
           </div>
           <div class="module-right">
             <span class="module-status">${stats.unresolved} unresolved · ${resolveRate}% resolved</span>
-            <button class="btn-mini">Xem câu hỏi</button>
+            <div class="module-actions">
+              <button class="btn-mini" data-action="view-module">View Questions</button>
+              <button class="btn-mini btn-ghost" data-action="retry-module">Retry</button>
+            </div>
           </div>
         </div>
       `;
     }).join('');
+
+    document.getElementById('retry-course-count').textContent = bySubject.length;
+    courseBar.classList.remove('hidden');
+  }
+
+  // Fisher–Yates shuffle — used for both per-module Retry and Retry this Course
+  function shuffleArray(arr){
+    const a = arr.slice();
+    for(let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
   }
 
   document.getElementById('module-list').addEventListener('click', (e)=>{
     const row = e.target.closest('.module-row');
     if(!row) return;
-    selectModule(currentSubject, row.dataset.module);
+    const moduleName = row.dataset.module;
+
+    const viewBtn = e.target.closest('[data-action="view-module"]');
+    if(viewBtn){
+      selectModule(currentSubject, moduleName);
+      return;
+    }
+    const retryBtn = e.target.closest('[data-action="retry-module"]');
+    if(retryBtn){
+      const ids = allMistakes
+        .filter(m=> m.subject === currentSubject && (m.module || UNCATEGORIZED) === moduleName)
+        .map(m=> m.id);
+      startRetrySession(shuffleArray(ids));
+      return;
+    }
+  });
+
+  document.getElementById('retry-course-btn').addEventListener('click', ()=>{
+    const ids = allMistakes.filter(m=> m.subject === currentSubject).map(m=> m.id);
+    startRetrySession(shuffleArray(ids));
   });
 
   function renderRetryQueue(){
@@ -1249,14 +1291,14 @@
 
     list.innerHTML = active.map(m=>{
       const isResolved = m.status === 'resolved';
-      const due = isResolved ? { label:'✓ Đã master', overdue:false } : formatDue(m.nextReviewAt);
+      const due = isResolved ? { label:'✓ Mastered', overdue:false } : formatDue(m.nextReviewAt);
       const typesAttr = (m.errorTypes||[]).join(' ');
       const preview = stripHtml(m.questionHtml).slice(0, 110) || '(no question text)';
       const tagsHtml = (m.errorTypes||[]).map(t=>`<span class="mini-tag">${ERROR_LABEL[t]||t}</span>`).join('');
       const history = m.retryHistory || [];
       const lastTwo = history.slice(-2);
       const isRepeatOffender = !isResolved && lastTwo.length === 2 && lastTwo[0].result === 'fail' && lastTwo[1].result === 'fail';
-      const repeatTagHtml = isRepeatOffender ? `<span class="mini-tag repeat-tag">⚠ Sai lặp lại</span>` : '';
+      const repeatTagHtml = isRepeatOffender ? `<span class="mini-tag repeat-tag">⚠ Repeated mistake</span>` : '';
       const detailsLabel = history.length > 0 ? `Details (${history.length})` : 'Details';
       return `
         <div class="queue-item ${due.overdue?'overdue':''} ${isResolved?'resolved':''}" data-id="${m.id}" data-types="${typesAttr}" data-overdue="${due.overdue}" data-resolved="${isResolved}">
@@ -1360,7 +1402,7 @@
       return `
         <div class="history-panel">
           <div class="rp-label">Retry history</div>
-          <div class="history-empty">Chưa có lần retry nào cho câu này.</div>
+          <div class="history-empty">No retry attempts yet for this question.</div>
         </div>
       `;
     }
@@ -1373,8 +1415,8 @@
         <div class="history-row ${isFail ? 'fail' : 'pass'}">
           <span class="history-idx">#${idx+1}</span>
           <span class="history-date">${dateStr}</span>
-          <span class="history-result">${isFail ? 'Sai' : 'Đúng'}</span>
-          ${isRepeatFail ? '<span class="history-flag">⚠ Vẫn sai như lần trước</span>' : ''}
+          <span class="history-result">${isFail ? 'Wrong' : 'Correct'}</span>
+          ${isRepeatFail ? '<span class="history-flag">⚠ Still wrong, same as last time</span>' : ''}
         </div>
       `;
     }).join('');
@@ -1403,21 +1445,21 @@
       </div>
       <div class="details-answers">
         <div class="details-answer wrong">
-          <div class="rp-label">Bạn đã chọn (Sai)</div>
+          <div class="rp-label">Your Answer (Wrong)</div>
           <div class="rp-value">${chosenLetter}. ${chosenText}</div>
         </div>
         <div class="details-answer correct">
-          <div class="rp-label">Đáp án đúng</div>
+          <div class="rp-label">Correct Answer</div>
           <div class="rp-value">${correctLetter}. ${correctText}</div>
         </div>
       </div>
       <div class="details-block">
-        <div class="rp-label">Giải thích</div>
-        <div class="rp-value">${m.explanation || 'Chưa có giải thích được lưu.'}</div>
+        <div class="rp-label">Explanation</div>
+        <div class="rp-value">${m.explanation || 'No explanation was saved for this question.'}</div>
       </div>
       <div class="details-block">
-        <div class="rp-label">Lý do sai</div>
-        <div class="rp-value">${m.note || 'Chưa ghi lý do.'}</div>
+        <div class="rp-label">Reason for Mistake</div>
+        <div class="rp-value">${m.note || 'No reason was noted.'}</div>
       </div>
       ${buildHistoryPanelHtml(m)}
     `;
@@ -2210,7 +2252,7 @@
     `).join('');
   }
 
-  // ---- Home dashboard: "Cần retry hôm nay" — overdue + due-within-24h across all subjects ----
+  // ---- Home dashboard: "Due Today" — overdue + due-within-24h across all subjects ----
   function renderDueToday(){
     const container = document.getElementById('due-today-list');
     if(!container) return;
@@ -2224,7 +2266,7 @@
     const top = candidates.slice(0, 8);
 
     if(top.length === 0){
-      container.innerHTML = `<div class="history-empty">Không có câu nào cần retry hôm nay 🎉</div>`;
+      container.innerHTML = `<div class="history-empty">No questions due for retry today 🎉</div>`;
       return;
     }
 
