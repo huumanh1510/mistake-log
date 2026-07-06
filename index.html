@@ -83,6 +83,25 @@
   }
   .btn-add-mistake:hover{ background:#fff; }
 
+  /* ---------- Breadcrumb (module view) ---------- */
+  .breadcrumb{ font-size:.82rem; color:var(--text-dim); margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .breadcrumb .crumb-link{ color:var(--accent); cursor:pointer; }
+  .breadcrumb .crumb-link:hover{ text-decoration:underline; }
+  .breadcrumb .crumb-sep{ color:var(--text-faint); }
+
+  /* ---------- Module list (LES-style) ---------- */
+  .module-row{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:16px 4px; border-bottom:1px solid var(--line); cursor:pointer;
+  }
+  .module-row:hover .module-name{ color:var(--accent); }
+  .module-row:first-child{ border-top:1px solid var(--line); }
+  .module-row .module-name{ font-size:1rem; color:var(--text); font-weight:500; margin-bottom:4px; }
+  .module-row .module-sub{ font-size:.8rem; color:var(--text-dim); }
+  .module-row .module-right{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
+  .module-row .module-status{ font-size:.8rem; color:var(--text-dim); white-space:nowrap; }
+  .module-row .btn-mini{ flex-shrink:0; }
+
   /* ---------- Home dashboard: due today ---------- */
   .due-today-row{
     display:flex; align-items:center; gap:12px; padding:10px 14px; border:1px solid var(--line);
@@ -260,7 +279,8 @@
     padding:8px 14px; font-size:.8rem; cursor:pointer; white-space:nowrap; font-family:var(--font);
   }
   .btn-mini:hover{ border-color: var(--accent); }
-  .queue-item-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+  .queue-item-actions{ display:grid; grid-template-columns:1fr 1fr; gap:6px; flex-shrink:0; }
+  .queue-item-actions .btn-mini{ text-align:center; }
   .btn-mini.btn-ghost{ color:var(--text-dim); font-size:.74rem; padding:6px 12px; }
   .mini-tag.repeat-tag{ border-color:var(--wrong); color:var(--wrong); }
 
@@ -468,6 +488,14 @@
   .details-answer .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:5px; }
   .details-answer .rp-value{ font-size:.88rem; color:var(--text); line-height:1.5; }
   @media (max-width:520px){ .details-answers{ grid-template-columns:1fr; } }
+
+  /* ---------- Confirm delete modal ---------- */
+  .confirm-modal{ max-width:380px; text-align:center; }
+  .confirm-title{ font-size:1.02rem; font-weight:700; color:var(--text); margin-bottom:10px; }
+  .confirm-body{ font-size:.85rem; color:var(--text-dim); line-height:1.55; margin-bottom:20px; }
+  .confirm-actions{ display:flex; justify-content:center; gap:10px; }
+  .btn-danger{ background:var(--wrong); color:#fff; border-color:var(--wrong); }
+  .btn-danger:hover{ background:#d98a8a; border-color:#d98a8a; }
 </style>
 </head>
 <body>
@@ -545,11 +573,29 @@
     </div>
   </section>
 
-  <!-- ============ SUBJECT VIEW (shared by all 10 subjects) ============ -->
+  <!-- ============ SUBJECT VIEW: MODULE LIST (shared by all 10 subjects) ============ -->
   <section class="panel" id="view-subject">
     <div class="subject-header">
       <h2 id="subject-title">Subject</h2>
-      <button class="btn-add-mistake" id="add-mistake-btn">+ Add wrong questions</button>
+      <button class="btn-add-mistake" id="add-mistake-btn-subject">+ Add wrong questions</button>
+    </div>
+    <p class="section-hint">Chọn module để xem các câu đã sai trong module đó.</p>
+
+    <div id="module-list"></div>
+
+    <div class="empty-state" id="module-list-empty" style="display:none;">Chưa có câu sai nào trong môn này — bấm "+ Add wrong questions" để bắt đầu.</div>
+  </section>
+
+  <!-- ============ MODULE VIEW: QUESTIONS WITHIN A MODULE ============ -->
+  <section class="panel" id="view-module">
+    <div class="breadcrumb">
+      <span class="crumb-link" id="breadcrumb-subject">Subject</span>
+      <span class="crumb-sep">›</span>
+      <span id="breadcrumb-module">Module</span>
+    </div>
+    <div class="subject-header">
+      <h2 id="module-title">Module</h2>
+      <button class="btn-add-mistake" id="add-mistake-btn-module">+ Add wrong questions</button>
     </div>
     <p class="section-hint">Ordered by how overdue and how severe.</p>
 
@@ -589,7 +635,7 @@
   <div class="rs-overlay hidden" id="add-mistake-overlay">
     <div class="rs-modal add-mistake-modal">
       <div class="rs-header">
-        <div class="rs-progress">Add wrong questions</div>
+        <div class="rs-progress" id="add-mistake-title">Add wrong questions</div>
         <button class="rs-close" id="add-mistake-close">×</button>
       </div>
 
@@ -614,9 +660,15 @@
           </select>
         </div>
         <div class="field">
-          <label>Topic / LOS</label>
-          <input type="text" id="f-topic" placeholder="e.g. Bond convexity & duration">
+          <label>Module</label>
+          <input type="text" id="f-module" list="module-suggestions" placeholder="e.g. Module 2: Analyzing Income Statements">
+          <datalist id="module-suggestions"></datalist>
         </div>
+      </div>
+
+      <div class="field">
+        <label>Topic / LOS</label>
+        <input type="text" id="f-topic" placeholder="e.g. Bond convexity & duration">
       </div>
 
       <div class="field">
@@ -708,6 +760,17 @@
     </div>
   </div>
 
+  <div class="rs-overlay hidden" id="confirm-overlay">
+    <div class="rs-modal confirm-modal">
+      <div class="confirm-title">Xoá câu hỏi này?</div>
+      <div class="confirm-body">Hành động này không thể hoàn tác — toàn bộ lịch sử retry của câu hỏi cũng sẽ bị xoá.</div>
+      <div class="confirm-actions">
+        <button class="btn-mini" id="confirm-cancel-btn">Huỷ</button>
+        <button class="btn-mini btn-danger" id="confirm-delete-btn">Xoá</button>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /#app-shell -->
 
 <div class="toast" id="toast"></div>
@@ -742,8 +805,10 @@
     'Alternative Investments','Corporate Issuers'
   ];
 
-  let currentView = 'home';   // 'home' | 'subject'
-  let currentSubject = null;  // subject name when currentView === 'subject'
+  let currentView = 'home';   // 'home' | 'subject' (module list) | 'module' (questions in a module)
+  let currentSubject = null;  // subject name when currentView is 'subject' or 'module'
+  let currentModule = null;   // module name when currentView === 'module'
+  const UNCATEGORIZED = 'Chưa phân loại';
 
   function buildSidebar(){
     const sidebar = document.getElementById('sidebar');
@@ -758,7 +823,11 @@
     sidebar.addEventListener('click', (e)=>{
       const btn = e.target.closest('.sidebar-item');
       if(!btn) return;
-      selectView(btn.dataset.view, btn.dataset.subject || null);
+      if(btn.dataset.view === 'home'){
+        selectView('home', null);
+      } else {
+        selectView('subject', btn.dataset.subject);
+      }
     });
   }
 
@@ -767,9 +836,20 @@
     select.innerHTML = SUBJECTS.map(s=> `<option>${s}</option>`).join('');
   }
 
+  // Populate the Module datalist with modules already used in the currently-selected subject,
+  // so the user can reuse a name instead of retyping it (still free to type a brand new one).
+  function refreshModuleSuggestions(){
+    const subject = document.getElementById('f-subject').value;
+    const modules = Array.from(new Set(
+      allMistakes.filter(m=> m.subject === subject && m.module).map(m=> m.module)
+    )).sort();
+    document.getElementById('module-suggestions').innerHTML = modules.map(m=> `<option value="${m}"></option>`).join('');
+  }
+
   function selectView(view, subject){
     currentView = view;
     currentSubject = subject || null;
+    currentModule = null;
 
     document.querySelectorAll('.sidebar-item').forEach(b=>{
       const isActive = b.dataset.view === view && (view !== 'subject' || b.dataset.subject === subject);
@@ -777,16 +857,39 @@
     });
     document.getElementById('view-home').classList.toggle('active', view === 'home');
     document.getElementById('view-subject').classList.toggle('active', view === 'subject');
+    document.getElementById('view-module').classList.toggle('active', false);
 
     if(view === 'subject'){
       document.getElementById('subject-title').textContent = subject;
-      renderRetryQueue();
+      renderModuleList();
     } else {
       renderAnalytics();
       renderSuggestions();
       renderDueToday();
     }
   }
+
+  function selectModule(subject, moduleName){
+    currentView = 'module';
+    currentSubject = subject;
+    currentModule = moduleName;
+
+    document.querySelectorAll('.sidebar-item').forEach(b=>{
+      b.classList.toggle('active', b.dataset.subject === subject);
+    });
+    document.getElementById('view-home').classList.toggle('active', false);
+    document.getElementById('view-subject').classList.toggle('active', false);
+    document.getElementById('view-module').classList.toggle('active', true);
+
+    document.getElementById('breadcrumb-subject').textContent = subject;
+    document.getElementById('breadcrumb-module').textContent = moduleName;
+    document.getElementById('module-title').textContent = moduleName;
+    renderRetryQueue();
+  }
+
+  document.getElementById('breadcrumb-subject').addEventListener('click', ()=>{
+    selectView('subject', currentSubject);
+  });
 
   buildSidebar();
   buildSubjectDropdown();
@@ -839,6 +942,7 @@
         .orderBy('createdAt', 'desc')
         .onSnapshot(snapshot=>{
           allMistakes = snapshot.docs.map(d=> ({ id: d.id, ...d.data() }));
+          renderModuleList();
           renderRetryQueue();
           updateHeaderStats();
           renderAnalytics();
@@ -864,22 +968,74 @@
     document.getElementById('stat-resolve-rate').textContent = total > 0 ? Math.round(resolved/total*100) + '%' : '—';
   }
 
-  // ---- Add-mistake modal (opened from "+ Add wrong questions" inside a subject view) ----
-  document.getElementById('add-mistake-btn').addEventListener('click', ()=>{
+  // ---- Add-mistake modal (opened from "+ Add wrong questions", in either the module-list or module view) ----
+  let editingMistakeId = null; // null = adding a new mistake; otherwise editing this existing doc id
+
+  function openAddMistakeModal(){
+    editingMistakeId = null;
+    resetLogForm();
+    document.getElementById('add-mistake-title').textContent = 'Add wrong questions';
+    document.getElementById('save-mistake-btn').textContent = 'Save mistake';
     if(currentSubject){
       document.getElementById('f-subject').value = currentSubject;
     }
+    if(currentModule){
+      document.getElementById('f-module').value = currentModule;
+    }
+    refreshModuleSuggestions();
     document.getElementById('add-mistake-overlay').classList.remove('hidden');
-  });
+  }
+
+  document.getElementById('add-mistake-btn-subject').addEventListener('click', openAddMistakeModal);
+  document.getElementById('add-mistake-btn-module').addEventListener('click', openAddMistakeModal);
+  document.getElementById('f-subject').addEventListener('change', refreshModuleSuggestions);
+
   document.getElementById('add-mistake-close').addEventListener('click', ()=>{
     document.getElementById('add-mistake-overlay').classList.add('hidden');
   });
 
-  // ---- Save a new mistake ----
+  // Populate the form with an existing mistake's data and switch the modal into Edit mode.
+  function openEditMistakeModal(id){
+    const m = allMistakes.find(x=> x.id === id);
+    if(!m) return;
+    editingMistakeId = id;
+    document.getElementById('add-mistake-title').textContent = 'Edit wrong question';
+    document.getElementById('save-mistake-btn').textContent = 'Save changes';
+
+    document.getElementById('f-subject').value = m.subject || '';
+    refreshModuleSuggestions();
+    document.getElementById('f-module').value = m.module || '';
+    document.getElementById('f-topic').value = m.topic || '';
+    document.getElementById('question-input').innerHTML = m.questionHtml || '';
+    const opts = m.options || {};
+    document.getElementById('f-opt-a').value = opts.A || '';
+    document.getElementById('f-opt-b').value = opts.B || '';
+    document.getElementById('f-opt-c').value = opts.C || '';
+    document.getElementById('f-explanation').value = m.explanation || '';
+    document.getElementById('f-note').value = m.note || '';
+
+    document.querySelectorAll('.radio-dot.picked').forEach(d=> d.classList.remove('picked'));
+    if(m.chosenAnswer){
+      const chosenEl = document.querySelector(`.radio-dot[data-group="chosen"][data-value="${m.chosenAnswer}"]`);
+      if(chosenEl) chosenEl.classList.add('picked');
+    }
+    if(m.correctAnswer){
+      const correctEl = document.querySelector(`.radio-dot[data-group="correct"][data-value="${m.correctAnswer}"]`);
+      if(correctEl) correctEl.classList.add('picked');
+    }
+    document.querySelectorAll('#error-tag-row .tag').forEach(t=>{
+      t.classList.toggle('on', (m.errorTypes||[]).includes(t.dataset.value));
+    });
+
+    document.getElementById('add-mistake-overlay').classList.remove('hidden');
+  }
+
+  // ---- Save (add new, or update existing when editingMistakeId is set) ----
   document.getElementById('save-mistake-btn').addEventListener('click', async ()=>{
     if(!currentUser){ showToast('Please sign in first', true); return; }
 
     const subject = document.getElementById('f-subject').value;
+    const module = document.getElementById('f-module').value.trim();
     const topic = document.getElementById('f-topic').value.trim();
     const questionHtml = document.getElementById('question-input').innerHTML.trim();
     const optA = document.getElementById('f-opt-a').value.trim();
@@ -891,30 +1047,43 @@
     const note = document.getElementById('f-note').value.trim();
     const errorTypes = Array.from(document.querySelectorAll('#error-tag-row .tag.on')).map(t=>t.dataset.value);
 
+    if(!module){ showToast('Please enter or pick a module', true); return; }
     if(!questionHtml){ showToast('Please enter the question first', true); return; }
     if(!chosenDot || !correctDot){ showToast('Mark both your answer and the correct answer', true); return; }
     if(errorTypes.length === 0){ showToast('Pick at least one error type', true); return; }
 
     const btn = document.getElementById('save-mistake-btn');
     btn.disabled = true;
-    btn.textContent = 'Saving...';
+    btn.textContent = editingMistakeId ? 'Saving changes...' : 'Saving...';
 
     try{
-      const now = new Date();
-      const nextReview = new Date(now.getTime() + 24*60*60*1000); // first retry: tomorrow
-      await mistakesCollection().add({
-        subject, topic, questionHtml,
+      const payload = {
+        subject, module, topic, questionHtml,
         options: { A: optA, B: optB, C: optC },
         chosenAnswer: chosenDot.dataset.value,
         correctAnswer: correctDot.dataset.value,
-        explanation, note, errorTypes,
-        status: 'unresolved',
-        createdAt: firebase.firestore.FieldValue.serverTimestamp(),
-        nextReviewAt: firebase.firestore.Timestamp.fromDate(nextReview),
-        retryHistory: []
-      });
-      showToast('Mistake saved');
+        explanation, note, errorTypes
+      };
+
+      if(editingMistakeId){
+        // Editing only touches content fields — status, retryHistory and nextReviewAt
+        // (the spaced-repetition progress) are left untouched.
+        await mistakesCollection().doc(editingMistakeId).update(payload);
+        showToast('Mistake updated');
+      } else {
+        const now = new Date();
+        const nextReview = new Date(now.getTime() + 24*60*60*1000); // first retry: tomorrow
+        await mistakesCollection().add({
+          ...payload,
+          status: 'unresolved',
+          createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+          nextReviewAt: firebase.firestore.Timestamp.fromDate(nextReview),
+          retryHistory: []
+        });
+        showToast('Mistake saved');
+      }
       resetLogForm();
+      editingMistakeId = null;
       document.getElementById('add-mistake-overlay').classList.add('hidden');
     } catch(err){
       console.error('[Firestore]', err.message);
@@ -926,6 +1095,7 @@
   });
 
   function resetLogForm(){
+    document.getElementById('f-module').value = '';
     document.getElementById('f-topic').value = '';
     document.getElementById('question-input').innerHTML = '';
     document.getElementById('f-opt-a').value = '';
@@ -936,6 +1106,34 @@
     document.querySelectorAll('.radio-dot.picked').forEach(d=> d.classList.remove('picked'));
     document.querySelectorAll('#error-tag-row .tag.on').forEach(t=> t.classList.remove('on'));
   }
+
+  // ---- Delete mistake (with confirm modal) ----
+  let pendingDeleteId = null;
+
+  function openDeleteConfirm(id){
+    pendingDeleteId = id;
+    document.getElementById('confirm-overlay').classList.remove('hidden');
+  }
+
+  document.getElementById('confirm-cancel-btn').addEventListener('click', ()=>{
+    pendingDeleteId = null;
+    document.getElementById('confirm-overlay').classList.add('hidden');
+  });
+
+  document.getElementById('confirm-delete-btn').addEventListener('click', async ()=>{
+    if(!pendingDeleteId) return;
+    const id = pendingDeleteId;
+    try{
+      await mistakesCollection().doc(id).delete();
+      showToast('Đã xoá câu hỏi');
+    } catch(err){
+      console.error('[Firestore]', err.message);
+      showToast('Could not delete: ' + err.message, true);
+    } finally{
+      pendingDeleteId = null;
+      document.getElementById('confirm-overlay').classList.add('hidden');
+    }
+  });
 
   // ---- Retry queue rendering from real data ----
   const ERROR_LABEL = { conceptual:'Conceptual gap', calculation:'Calculation', misread:'Misread question', trap:'Trap / distractor', forgot:'Forgot' };
@@ -960,15 +1158,70 @@
     return (tmp.textContent || '').trim();
   }
 
-  function renderRetryQueue(){
+  // ---- Module list (LES-style): grouped per subject, click a module to see its questions ----
+  function renderModuleList(){
     if(currentView !== 'subject' || !currentSubject) return;
+
+    const container = document.getElementById('module-list');
+    const bySubject = allMistakes.filter(m=> m.subject === currentSubject);
+
+    if(bySubject.length === 0){
+      container.innerHTML = '';
+      document.getElementById('module-list-empty').style.display = 'block';
+      return;
+    }
+    document.getElementById('module-list-empty').style.display = 'none';
+
+    const moduleMap = {}; // moduleName -> { total, unresolved }
+    bySubject.forEach(m=>{
+      const key = m.module || UNCATEGORIZED;
+      if(!moduleMap[key]) moduleMap[key] = { total: 0, unresolved: 0 };
+      moduleMap[key].total++;
+      if(m.status !== 'resolved') moduleMap[key].unresolved++;
+    });
+
+    const moduleNames = Object.keys(moduleMap).sort((a,b)=>{
+      if(a === UNCATEGORIZED) return 1;
+      if(b === UNCATEGORIZED) return -1;
+      return a.localeCompare(b);
+    });
+
+    container.innerHTML = moduleNames.map(name=>{
+      const stats = moduleMap[name];
+      const resolvedCount = stats.total - stats.unresolved;
+      const resolveRate = Math.round(resolvedCount / stats.total * 100);
+      return `
+        <div class="module-row" data-module="${name}">
+          <div>
+            <div class="module-name">${name}</div>
+            <div class="module-sub">${stats.total} câu sai đã ghi nhận</div>
+          </div>
+          <div class="module-right">
+            <span class="module-status">${stats.unresolved} unresolved · ${resolveRate}% resolved</span>
+            <button class="btn-mini">Xem câu hỏi</button>
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('module-list').addEventListener('click', (e)=>{
+    const row = e.target.closest('.module-row');
+    if(!row) return;
+    selectModule(currentSubject, row.dataset.module);
+  });
+
+  function renderRetryQueue(){
+    if(currentView !== 'module' || !currentSubject || !currentModule) return;
 
     const list = document.getElementById('queue-list');
     const showResolved = document.getElementById('show-resolved-only') ? document.getElementById('show-resolved-only').checked : false;
 
-    const bySubject = allMistakes.filter(m=> m.subject === currentSubject);
+    const byModule = allMistakes.filter(m=>
+      m.subject === currentSubject && (m.module || UNCATEGORIZED) === currentModule
+    );
 
-    const unresolved = bySubject.filter(m=> m.status !== 'resolved');
+    const unresolved = byModule.filter(m=> m.status !== 'resolved');
     unresolved.sort((a,b)=>{
       const da = a.nextReviewAt && a.nextReviewAt.toDate ? a.nextReviewAt.toDate().getTime() : 0;
       const db = b.nextReviewAt && b.nextReviewAt.toDate ? b.nextReviewAt.toDate().getTime() : 0;
@@ -977,7 +1230,7 @@
 
     let resolved = [];
     if(showResolved){
-      resolved = bySubject.filter(m=> m.status === 'resolved');
+      resolved = byModule.filter(m=> m.status === 'resolved');
       resolved.sort((a,b)=>{
         const lastA = (a.retryHistory||[]).length ? new Date(a.retryHistory[a.retryHistory.length-1].date).getTime() : 0;
         const lastB = (b.retryHistory||[]).length ? new Date(b.retryHistory[b.retryHistory.length-1].date).getTime() : 0;
@@ -1015,6 +1268,8 @@
           <div class="due ${due.overdue?'urgent':''} ${isResolved?'mastered':''}">${due.label}</div>
           <div class="queue-item-actions">
             <button class="btn-mini btn-ghost" data-action="details">${detailsLabel}</button>
+            <button class="btn-mini btn-ghost" data-action="edit">Edit</button>
+            <button class="btn-mini btn-ghost" data-action="delete">Delete</button>
             <button class="btn-mini" data-action="retry">Retry</button>
           </div>
         </div>
@@ -1041,6 +1296,18 @@
       if(!mistake) return;
       document.getElementById('details-body').innerHTML = buildDetailsHtml(mistake);
       document.getElementById('details-overlay').classList.remove('hidden');
+      return;
+    }
+    const editBtn = e.target.closest('[data-action="edit"]');
+    if(editBtn){
+      const item = editBtn.closest('.queue-item');
+      openEditMistakeModal(item.dataset.id);
+      return;
+    }
+    const deleteBtn = e.target.closest('[data-action="delete"]');
+    if(deleteBtn){
+      const item = deleteBtn.closest('.queue-item');
+      openDeleteConfirm(item.dataset.id);
       return;
     }
   });
@@ -1126,6 +1393,10 @@
     const chosenText = opts[chosenLetter] || '(no text)';
     const correctText = opts[correctLetter] || '(no text)';
     return `
+      <div class="details-block">
+        <div class="rp-label">Module</div>
+        <div class="rp-value">${m.module || UNCATEGORIZED}${m.topic ? ' · ' + m.topic : ''}</div>
+      </div>
       <div class="details-block">
         <div class="rp-label">Question</div>
         <div class="rp-value">${m.questionHtml || ''}</div>
