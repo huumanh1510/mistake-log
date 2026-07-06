@@ -232,6 +232,29 @@
     padding:8px 14px; font-size:.8rem; cursor:pointer; white-space:nowrap; font-family:var(--font);
   }
   .btn-mini:hover{ border-color: var(--accent); }
+  .queue-item-actions{ display:flex; flex-direction:column; gap:6px; flex-shrink:0; }
+  .btn-mini.btn-ghost{ color:var(--text-dim); font-size:.74rem; padding:6px 12px; }
+  .mini-tag.repeat-tag{ border-color:var(--wrong); color:var(--wrong); }
+
+  /* ---------- Retry detail history panel ---------- */
+  .history-panel{
+    margin-top:10px; padding-top:12px; border-top:1px solid var(--line);
+  }
+  .history-panel .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:8px; }
+  .history-empty{ font-size:.83rem; color:var(--text-dim); }
+  .history-list{ display:flex; flex-direction:column; gap:6px; }
+  .history-row{
+    display:flex; align-items:center; gap:10px; font-size:.82rem; color:var(--text-dim);
+    padding:7px 10px; border-radius:4px; border:1px solid var(--line); background:var(--surface-2);
+  }
+  .history-row.pass{ border-color:var(--correct); }
+  .history-row.fail{ border-color:var(--wrong); }
+  .history-row .history-idx{ color:var(--text-faint); font-size:.74rem; }
+  .history-row .history-date{ flex:1; }
+  .history-row .history-result{ font-weight:700; }
+  .history-row.pass .history-result{ color:var(--correct); }
+  .history-row.fail .history-result{ color:var(--wrong); }
+  .history-row .history-flag{ color:var(--wrong); font-size:.74rem; font-weight:600; }
   .filter-groups{ margin-bottom:20px; }
   .filter-group{ margin-bottom:12px; }
   .filter-group:last-of-type{ margin-bottom:14px; }
@@ -376,28 +399,31 @@
   }
   .rs-overlay.hidden{ display:none; }
   .rs-modal{
-    background:var(--surface); border:1px solid var(--line); border-radius:8px;
-    max-width:560px; width:100%; max-height:88vh; overflow-y:auto; padding:24px;
+    background:var(--surface); border:1px solid var(--line); border-radius:10px;
+    max-width:720px; width:100%; max-height:88vh; overflow-y:auto; padding:36px 40px;
   }
-  .rs-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
-  .rs-progress{ font-size:.78rem; color:var(--text-dim); }
+  .rs-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .rs-progress{ font-size:.82rem; color:var(--text-dim); }
   .rs-close{
     background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:4px;
-    width:26px; height:26px; cursor:pointer; font-size:.9rem; font-family:var(--font);
+    width:30px; height:30px; cursor:pointer; font-size:1rem; font-family:var(--font);
   }
   .rs-close:hover{ border-color:var(--accent); color:var(--text); }
-  .rs-subject{ font-size:.72rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-bottom:12px; }
-  .rs-question{ font-size:.92rem; color:var(--text); line-height:1.55; margin-bottom:6px; }
-  .rs-footer{ display:flex; justify-content:flex-end; margin-top:16px; }
+  .rs-subject{ font-size:.76rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-bottom:16px; text-align:center; }
+  .rs-question{ font-size:1.3rem; color:var(--text); line-height:1.6; margin-bottom:22px; text-align:center; }
+  .rs-footer{ display:flex; justify-content:center; margin-top:22px; }
   .rs-next-btn{
-    background:var(--text); color:var(--bg); border:none; border-radius:4px;
-    padding:10px 22px; font-weight:700; font-size:.85rem; cursor:pointer; font-family:var(--font);
+    background:var(--text); color:var(--bg); border:none; border-radius:5px;
+    padding:13px 32px; font-weight:700; font-size:.95rem; cursor:pointer; font-family:var(--font);
   }
   .rs-next-btn:disabled{ opacity:.35; cursor:default; }
   .rs-next-btn:not(:disabled):hover{ background:#fff; }
   .rs-summary{ text-align:center; padding:20px 0; }
   .rs-summary .rs-score{ font-size:2rem; font-weight:700; color:var(--text); margin-bottom:6px; }
   .rs-summary .rs-score-lbl{ color:var(--text-dim); font-size:.85rem; margin-bottom:20px; }
+  .rs-modal .retry-options{ max-width:520px; margin-left:auto; margin-right:auto; }
+  .rs-modal .retry-option{ padding:16px 20px; font-size:1.02rem; }
+  .rs-modal .retry-explanation{ max-width:520px; margin-left:auto; margin-right:auto; font-size:.9rem; }
 </style>
 </head>
 <body>
@@ -429,7 +455,7 @@
 
 <nav class="tabs">
   <button class="active" data-tab="log">Log Mistake</button>
-  <button data-tab="queue">Retry Queue <span class="count">14</span></button>
+  <button data-tab="queue">Retry Queue</button>
   <button data-tab="analytics">Analytics</button>
   <button data-tab="suggest">Suggestions</button>
 </nav>
@@ -836,17 +862,25 @@
       const typesAttr = (m.errorTypes||[]).join(' ');
       const preview = stripHtml(m.questionHtml).slice(0, 110) || '(no question text)';
       const tagsHtml = (m.errorTypes||[]).map(t=>`<span class="mini-tag">${ERROR_LABEL[t]||t}</span>`).join('');
+      const history = m.retryHistory || [];
+      const lastTwo = history.slice(-2);
+      const isRepeatOffender = lastTwo.length === 2 && lastTwo[0].result === 'fail' && lastTwo[1].result === 'fail';
+      const repeatTagHtml = isRepeatOffender ? `<span class="mini-tag repeat-tag">⚠ Sai lặp lại</span>` : '';
+      const historyLabel = history.length > 0 ? `Lịch sử (${history.length})` : 'Lịch sử';
       return `
         <div class="queue-item ${due.overdue?'overdue':''}" data-id="${m.id}" data-subject="${subjectKey}" data-types="${typesAttr}" data-overdue="${due.overdue}">
           <div class="status-bar"></div>
           <div class="meta">
             <span class="subject-badge">${(m.subject||'').toUpperCase()}</span>
             <div class="q-text">${preview}${preview.length>=110?'...':''}</div>
-            <div class="err-tags">${tagsHtml}</div>
+            <div class="err-tags">${tagsHtml}${repeatTagHtml}</div>
             <div class="review-panel-slot"></div>
           </div>
           <div class="due ${due.overdue?'urgent':''}">${due.label}</div>
-          <button class="btn-mini" data-action="retry">Retry</button>
+          <div class="queue-item-actions">
+            <button class="btn-mini btn-ghost" data-action="toggle-history">${historyLabel}</button>
+            <button class="btn-mini" data-action="retry">Retry</button>
+          </div>
         </div>
       `;
     }).join('');
@@ -859,14 +893,20 @@
     const retryBtn = e.target.closest('[data-action="retry"]');
     if(retryBtn){
       const item = retryBtn.closest('.queue-item');
+      const id = item.dataset.id;
+      startRetrySession([id]);
+      return;
+    }
+    const historyBtn = e.target.closest('[data-action="toggle-history"]');
+    if(historyBtn){
+      const item = historyBtn.closest('.queue-item');
       const slot = item.querySelector('.review-panel-slot');
-      const existing = slot.querySelector('.review-panel');
+      const existing = slot.querySelector('.history-panel');
       if(existing){ existing.remove(); return; }
       const id = item.dataset.id;
       const mistake = allMistakes.find(m=> m.id === id);
       if(!mistake) return;
-      slot.innerHTML = buildReviewPanelHtml(mistake);
-      bindRetryOptions(slot, mistake, (wasCorrect)=> submitRetryResult(id, wasCorrect));
+      slot.innerHTML = buildHistoryPanelHtml(mistake);
       return;
     }
   });
@@ -909,11 +949,34 @@
     });
   }
 
-  function buildReviewPanelHtml(m){
+  function buildHistoryPanelHtml(m){
+    const history = m.retryHistory || [];
+    if(history.length === 0){
+      return `
+        <div class="history-panel">
+          <div class="rp-label">Retry history</div>
+          <div class="history-empty">Chưa có lần retry nào cho câu này.</div>
+        </div>
+      `;
+    }
+    const rows = history.map((h, idx)=>{
+      const dt = new Date(h.date);
+      const dateStr = isNaN(dt.getTime()) ? '' : dt.toLocaleDateString('vi-VN', { day:'2-digit', month:'2-digit', year:'numeric' }) + ' ' + dt.toLocaleTimeString('vi-VN', { hour:'2-digit', minute:'2-digit' });
+      const isFail = h.result === 'fail';
+      const isRepeatFail = isFail && idx > 0 && history[idx-1].result === 'fail';
+      return `
+        <div class="history-row ${isFail ? 'fail' : 'pass'}">
+          <span class="history-idx">#${idx+1}</span>
+          <span class="history-date">${dateStr}</span>
+          <span class="history-result">${isFail ? 'Sai' : 'Đúng'}</span>
+          ${isRepeatFail ? '<span class="history-flag">⚠ Vẫn sai như lần trước</span>' : ''}
+        </div>
+      `;
+    }).join('');
     return `
-      <div class="review-panel">
-        <div class="rp-block"><div class="rp-label">Question</div><div class="rp-value">${m.questionHtml}</div></div>
-        ${renderInteractiveOptionsHtml(m)}
+      <div class="history-panel">
+        <div class="rp-label">Retry history (${history.length})</div>
+        <div class="history-list">${rows}</div>
       </div>
     `;
   }
@@ -924,21 +987,12 @@
     const history = (mistake.retryHistory || []).slice();
     history.push({ date: new Date().toISOString(), result: wasCorrect ? 'pass' : 'fail' });
 
-    let consecutivePass = 0;
-    for(let i = history.length - 1; i >= 0; i--){
-      if(history[i].result === 'pass') consecutivePass++; else break;
-    }
-
     const updates = { retryHistory: history };
     if(!wasCorrect){
       updates.nextReviewAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 1*24*60*60*1000));
       updates.status = 'unresolved';
-    } else if(consecutivePass >= 3){
-      updates.status = 'resolved';
     } else {
-      const days = consecutivePass === 1 ? 2 : 5;
-      updates.nextReviewAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + days*24*60*60*1000));
-      updates.status = 'unresolved';
+      updates.status = 'resolved';
     }
 
     try{
@@ -955,13 +1009,17 @@
   // ════════════════════════════════════════════════
   let retrySession = null; // { ids: [...], index: 0, correctCount: 0 }
 
+  function startRetrySession(ids){
+    if(!ids || ids.length === 0) return;
+    retrySession = { ids, index: 0, correctCount: 0 };
+    document.getElementById('rs-overlay').classList.remove('hidden');
+    renderSessionQuestion();
+  }
+
   document.getElementById('retry-set-btn').addEventListener('click', ()=>{
     const visibleIds = Array.from(document.querySelectorAll('#queue-list .queue-item:not(.hidden)'))
       .map(item => item.dataset.id);
-    if(visibleIds.length === 0) return;
-    retrySession = { ids: visibleIds, index: 0, correctCount: 0 };
-    document.getElementById('rs-overlay').classList.remove('hidden');
-    renderSessionQuestion();
+    startRetrySession(visibleIds);
   });
 
   document.getElementById('rs-close').addEventListener('click', closeRetrySession);
