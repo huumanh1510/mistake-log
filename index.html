@@ -227,6 +227,9 @@
   .mini-tag{ font-size:.7rem; padding:2px 8px; border-radius:3px; border:1px solid var(--line); color:var(--text-dim);}
   .queue-item .due{ font-size:.76rem; color:var(--text-dim); white-space:nowrap; }
   .queue-item .due.urgent{ color:var(--text); }
+  .queue-item .due.mastered{ color:var(--correct); font-weight:600; }
+  .queue-item.resolved{ opacity:.6; }
+  .queue-item.resolved .status-bar{ background:var(--correct); }
   .btn-mini{
     background:none; border:1px solid var(--line); color:var(--text); border-radius:4px;
     padding:8px 14px; font-size:.8rem; cursor:pointer; white-space:nowrap; font-family:var(--font);
@@ -284,10 +287,11 @@
   .chart-card{ background:var(--surface); border:1px solid var(--line); border-radius:6px; padding:20px;}
   .chart-card h3{ font-size:.82rem; margin-bottom:16px; font-weight:700; color:var(--text-dim); text-transform:uppercase; letter-spacing:.03em;}
 
-  .heatmap{ display:grid; grid-template-columns: 90px repeat(5, 1fr); gap:3px; font-size:.72rem;}
+  .heatmap-scroll{ overflow-x:auto; }
+  .heatmap{ display:grid; grid-template-columns: 168px repeat(5, minmax(88px,1fr)); gap:4px; font-size:.72rem; min-width:620px;}
   .heatmap .hcell{ padding:9px 4px; text-align:center; border-radius:3px; color:var(--text);}
-  .heatmap .rowlabel{ text-align:right; padding-right:8px; color:var(--text-dim); display:flex; align-items:center; justify-content:flex-end; font-size:.76rem;}
-  .heatmap .collabel{ text-align:center; color:var(--text-dim); padding-bottom:6px; }
+  .heatmap .rowlabel{ text-align:right; padding-right:8px; color:var(--text-dim); display:flex; align-items:center; justify-content:flex-end; font-size:.7rem; line-height:1.25; white-space:normal;}
+  .heatmap .collabel{ text-align:center; color:var(--text-dim); padding-bottom:6px; font-size:.68rem; line-height:1.25; white-space:normal; }
 
   .bar-track{ background:var(--surface-2); border-radius:3px; height:8px; overflow:hidden; margin-top:5px;}
   .bar-fill{ height:100%; border-radius:3px; background: var(--text-dim); }
@@ -424,6 +428,20 @@
   .rs-modal .retry-options{ max-width:520px; margin-left:auto; margin-right:auto; }
   .rs-modal .retry-option{ padding:16px 20px; font-size:1.02rem; }
   .rs-modal .retry-explanation{ max-width:520px; margin-left:auto; margin-right:auto; font-size:.9rem; }
+
+  /* ---------- Details modal ---------- */
+  .details-modal{ text-align:left; max-width:640px; }
+  .details-modal .rs-progress{ text-transform:uppercase; letter-spacing:.05em; font-size:.72rem; }
+  .details-block{ margin-bottom:18px; }
+  .details-block .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:5px; }
+  .details-block .rp-value{ font-size:.9rem; color:var(--text); line-height:1.55; }
+  .details-answers{ display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:18px; }
+  .details-answer{ border-radius:6px; padding:12px 14px; border:1px solid var(--line); }
+  .details-answer.wrong{ border-color:var(--wrong); background:var(--wrong-dim); }
+  .details-answer.correct{ border-color:var(--correct); background:var(--correct-dim); }
+  .details-answer .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:5px; }
+  .details-answer .rp-value{ font-size:.88rem; color:var(--text); line-height:1.5; }
+  @media (max-width:520px){ .details-answers{ grid-template-columns:1fr; } }
 </style>
 </head>
 <body>
@@ -591,6 +609,10 @@
         <input type="checkbox" id="overdue-only">
         Overdue only
       </label>
+      <label class="overdue-toggle">
+        <input type="checkbox" id="show-resolved-only">
+        Hiện câu đã resolve
+      </label>
     </div>
 
     <div class="retry-set-bar hidden" id="retry-set-bar">
@@ -613,6 +635,16 @@
     </div>
   </div>
 
+  <div class="rs-overlay hidden" id="details-overlay">
+    <div class="rs-modal details-modal">
+      <div class="rs-header">
+        <div class="rs-progress">Details</div>
+        <button class="rs-close" id="details-close">×</button>
+      </div>
+      <div id="details-body"></div>
+    </div>
+  </div>
+
   <!-- ============ TAB 3: ANALYTICS ============ -->
   <section class="panel" id="tab-analytics">
     <h2 class="section-title">Error analytics</h2>
@@ -628,7 +660,7 @@
     <div class="analytics-grid">
       <div class="chart-card">
         <h3>Subject × error type</h3>
-        <div class="heatmap" id="heatmap"></div>
+        <div class="heatmap-scroll"><div class="heatmap" id="heatmap"></div></div>
       </div>
       <div class="chart-card">
         <h3>Share by error type</h3>
@@ -843,42 +875,57 @@
 
   function renderRetryQueue(){
     const list = document.getElementById('queue-list');
-    const active = allMistakes.filter(m=> m.status !== 'resolved');
-    active.sort((a,b)=>{
+    const showResolved = document.getElementById('show-resolved-only') ? document.getElementById('show-resolved-only').checked : false;
+
+    const unresolved = allMistakes.filter(m=> m.status !== 'resolved');
+    unresolved.sort((a,b)=>{
       const da = a.nextReviewAt && a.nextReviewAt.toDate ? a.nextReviewAt.toDate().getTime() : 0;
       const db = b.nextReviewAt && b.nextReviewAt.toDate ? b.nextReviewAt.toDate().getTime() : 0;
       return da - db;
     });
+
+    let resolved = [];
+    if(showResolved){
+      resolved = allMistakes.filter(m=> m.status === 'resolved');
+      resolved.sort((a,b)=>{
+        const lastA = (a.retryHistory||[]).length ? new Date(a.retryHistory[a.retryHistory.length-1].date).getTime() : 0;
+        const lastB = (b.retryHistory||[]).length ? new Date(b.retryHistory[b.retryHistory.length-1].date).getTime() : 0;
+        return lastB - lastA;
+      });
+    }
+
+    const active = unresolved.concat(resolved);
 
     if(active.length === 0){
       list.innerHTML = '';
       document.getElementById('empty-state').style.display = 'block';
       return;
     }
+    document.getElementById('empty-state').style.display = 'none';
 
     list.innerHTML = active.map(m=>{
-      const due = formatDue(m.nextReviewAt);
+      const isResolved = m.status === 'resolved';
+      const due = isResolved ? { label:'✓ Đã master', overdue:false } : formatDue(m.nextReviewAt);
       const subjectKey = SUBJECT_KEY[m.subject] || 'other';
       const typesAttr = (m.errorTypes||[]).join(' ');
       const preview = stripHtml(m.questionHtml).slice(0, 110) || '(no question text)';
       const tagsHtml = (m.errorTypes||[]).map(t=>`<span class="mini-tag">${ERROR_LABEL[t]||t}</span>`).join('');
       const history = m.retryHistory || [];
       const lastTwo = history.slice(-2);
-      const isRepeatOffender = lastTwo.length === 2 && lastTwo[0].result === 'fail' && lastTwo[1].result === 'fail';
+      const isRepeatOffender = !isResolved && lastTwo.length === 2 && lastTwo[0].result === 'fail' && lastTwo[1].result === 'fail';
       const repeatTagHtml = isRepeatOffender ? `<span class="mini-tag repeat-tag">⚠ Sai lặp lại</span>` : '';
-      const historyLabel = history.length > 0 ? `Lịch sử (${history.length})` : 'Lịch sử';
+      const detailsLabel = history.length > 0 ? `Details (${history.length})` : 'Details';
       return `
-        <div class="queue-item ${due.overdue?'overdue':''}" data-id="${m.id}" data-subject="${subjectKey}" data-types="${typesAttr}" data-overdue="${due.overdue}">
+        <div class="queue-item ${due.overdue?'overdue':''} ${isResolved?'resolved':''}" data-id="${m.id}" data-subject="${subjectKey}" data-types="${typesAttr}" data-overdue="${due.overdue}" data-resolved="${isResolved}">
           <div class="status-bar"></div>
           <div class="meta">
             <span class="subject-badge">${(m.subject||'').toUpperCase()}</span>
             <div class="q-text">${preview}${preview.length>=110?'...':''}</div>
             <div class="err-tags">${tagsHtml}${repeatTagHtml}</div>
-            <div class="review-panel-slot"></div>
           </div>
-          <div class="due ${due.overdue?'urgent':''}">${due.label}</div>
+          <div class="due ${due.overdue?'urgent':''} ${isResolved?'mastered':''}">${due.label}</div>
           <div class="queue-item-actions">
-            <button class="btn-mini btn-ghost" data-action="toggle-history">${historyLabel}</button>
+            <button class="btn-mini btn-ghost" data-action="details">${detailsLabel}</button>
             <button class="btn-mini" data-action="retry">Retry</button>
           </div>
         </div>
@@ -897,18 +944,20 @@
       startRetrySession([id]);
       return;
     }
-    const historyBtn = e.target.closest('[data-action="toggle-history"]');
-    if(historyBtn){
-      const item = historyBtn.closest('.queue-item');
-      const slot = item.querySelector('.review-panel-slot');
-      const existing = slot.querySelector('.history-panel');
-      if(existing){ existing.remove(); return; }
+    const detailsBtn = e.target.closest('[data-action="details"]');
+    if(detailsBtn){
+      const item = detailsBtn.closest('.queue-item');
       const id = item.dataset.id;
       const mistake = allMistakes.find(m=> m.id === id);
       if(!mistake) return;
-      slot.innerHTML = buildHistoryPanelHtml(mistake);
+      document.getElementById('details-body').innerHTML = buildDetailsHtml(mistake);
+      document.getElementById('details-overlay').classList.remove('hidden');
       return;
     }
+  });
+
+  document.getElementById('details-close').addEventListener('click', ()=>{
+    document.getElementById('details-overlay').classList.add('hidden');
   });
 
   // Shared interactive answer-picking UI, used both inline (single item) and in the retry session modal
@@ -981,6 +1030,50 @@
     `;
   }
 
+  function buildDetailsHtml(m){
+    const opts = m.options || {};
+    const chosenLetter = m.chosenAnswer || '';
+    const correctLetter = m.correctAnswer || '';
+    const chosenText = opts[chosenLetter] || '(no text)';
+    const correctText = opts[correctLetter] || '(no text)';
+    return `
+      <div class="details-block">
+        <div class="rp-label">Question</div>
+        <div class="rp-value">${m.questionHtml || ''}</div>
+      </div>
+      <div class="details-answers">
+        <div class="details-answer wrong">
+          <div class="rp-label">Bạn đã chọn (Sai)</div>
+          <div class="rp-value">${chosenLetter}. ${chosenText}</div>
+        </div>
+        <div class="details-answer correct">
+          <div class="rp-label">Đáp án đúng</div>
+          <div class="rp-value">${correctLetter}. ${correctText}</div>
+        </div>
+      </div>
+      <div class="details-block">
+        <div class="rp-label">Giải thích</div>
+        <div class="rp-value">${m.explanation || 'Chưa có giải thích được lưu.'}</div>
+      </div>
+      <div class="details-block">
+        <div class="rp-label">Lý do sai</div>
+        <div class="rp-value">${m.note || 'Chưa ghi lý do.'}</div>
+      </div>
+      ${buildHistoryPanelHtml(m)}
+    `;
+  }
+
+  // A mistake only counts as resolved once the last 2 retry attempts were both correct
+  // AND at least 1 day apart — a single lucky/recent-review correct answer isn't enough.
+  function isSpacedDoubleCorrect(history){
+    if(history.length < 2) return false;
+    const last = history[history.length - 1];
+    const prev = history[history.length - 2];
+    if(last.result !== 'pass' || prev.result !== 'pass') return false;
+    const gapMs = new Date(last.date).getTime() - new Date(prev.date).getTime();
+    return gapMs >= 24*60*60*1000;
+  }
+
   async function submitRetryResult(id, wasCorrect){
     const mistake = allMistakes.find(m=> m.id === id);
     if(!mistake) return;
@@ -991,13 +1084,17 @@
     if(!wasCorrect){
       updates.nextReviewAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 1*24*60*60*1000));
       updates.status = 'unresolved';
-    } else {
+    } else if(isSpacedDoubleCorrect(history)){
       updates.status = 'resolved';
+    } else {
+      // Correct, but not yet confirmed by a second spaced-out correct attempt
+      updates.nextReviewAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 1*24*60*60*1000));
+      updates.status = 'unresolved';
     }
 
     try{
       await mistakesCollection().doc(id).update(updates);
-      showToast(updates.status === 'resolved' ? 'Mastered — nice work' : 'Rescheduled');
+      showToast(updates.status === 'resolved' ? 'Mastered — nice work' : (wasCorrect ? 'Correct — retry again tomorrow to confirm mastery' : 'Rescheduled'));
     } catch(err){
       console.error('[Firestore]', err.message);
       showToast('Could not update: ' + err.message, true);
@@ -1529,6 +1626,9 @@
 
   overdueOnlyBox.addEventListener('change', applyQueueFilters);
 
+  const showResolvedBox = document.getElementById('show-resolved-only');
+  showResolvedBox.addEventListener('change', renderRetryQueue);
+
   // ════════════════════════════════════════════════
   // ANALYTICS + SUGGESTIONS — computed from real mistakes
   // ════════════════════════════════════════════════
@@ -1537,14 +1637,7 @@
     'Economics','Ethics & Professional Standards','Portfolio Management','Derivatives',
     'Alternative Investments','Corporate Issuers'
   ];
-  const ANALYTICS_SUBJECT_SHORT = {
-    'Fixed Income':'Fixed Income','Equity Investments':'Equity','Financial Statement Analysis':'FRA',
-    'Quantitative Methods':'Quant','Economics':'Economics','Ethics & Professional Standards':'Ethics',
-    'Portfolio Management':'Portfolio','Derivatives':'Derivatives','Alternative Investments':'Alt Inv',
-    'Corporate Issuers':'Corp Issuers'
-  };
   const ERR_TYPES = ['conceptual','calculation','misread','trap','forgot'];
-  const ERR_TYPE_SHORT = { conceptual:'Concept', calculation:'Calc', misread:'Read', trap:'Trap', forgot:'Forgot' };
   const ERR_TYPE_FULL = { conceptual:'Conceptual gap', calculation:'Calculation error', misread:'Misread question', trap:'Trap / distractor', forgot:'Forgot' };
 
   function heatColor(v, max){
@@ -1604,16 +1697,16 @@
     let weakIdx = -1;
     subjectTotals.forEach((v,i)=>{ if(weakIdx === -1 || v > subjectTotals[weakIdx]) weakIdx = i; });
     document.getElementById('an-weak-subject').textContent = weakIdx >= 0 && subjectTotals[weakIdx] > 0
-      ? ANALYTICS_SUBJECT_SHORT[ANALYTICS_SUBJECTS[weakIdx]] : '—';
+      ? ANALYTICS_SUBJECTS[weakIdx] : '—';
 
     // Only show subjects that actually have at least 1 mistake, to keep the heatmap compact
     const activeSubjectIdx = ANALYTICS_SUBJECTS.map((_,i)=>i).filter(i=> subjectTotals[i] > 0);
     const maxCell = Math.max(1, ...heat.flat());
 
     let hmHtml = `<div></div>`;
-    ERR_TYPES.forEach(e=> hmHtml += `<div class="collabel">${ERR_TYPE_SHORT[e]}</div>`);
+    ERR_TYPES.forEach(e=> hmHtml += `<div class="collabel">${ERR_TYPE_FULL[e]}</div>`);
     activeSubjectIdx.forEach(si=>{
-      hmHtml += `<div class="rowlabel">${ANALYTICS_SUBJECT_SHORT[ANALYTICS_SUBJECTS[si]]}</div>`;
+      hmHtml += `<div class="rowlabel">${ANALYTICS_SUBJECTS[si]}</div>`;
       ERR_TYPES.forEach((e,ei)=>{
         const v = heat[si][ei];
         hmHtml += `<div class="hcell" style="background:${heatColor(v, maxCell)};">${v}</div>`;
