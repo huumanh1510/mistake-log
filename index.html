@@ -470,6 +470,51 @@
   .rs-summary{ text-align:center; padding:20px 0; }
   .rs-summary .rs-score{ font-size:2rem; font-weight:700; color:var(--text); margin-bottom:6px; }
   .rs-summary .rs-score-lbl{ color:var(--text-dim); font-size:.85rem; margin-bottom:20px; }
+
+  /* ---------- Full-screen quiz (new tab) ---------- */
+  .quiz-shell{
+    display:none; position:fixed; inset:0; z-index:9999; background:var(--bg);
+    flex-direction:column; min-height:100vh;
+  }
+  .quiz-shell:not(.hidden){ display:flex; }
+  .quiz-header{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:20px 32px; border-bottom:1px solid var(--line); flex-shrink:0;
+  }
+  .quiz-header-left{ display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  .quiz-title{ font-weight:700; font-size:1rem; color:var(--text); }
+  .quiz-progress-text{ font-size:.85rem; color:var(--text-dim); }
+  .quiz-exit-btn{
+    background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:4px;
+    padding:8px 16px; font-size:.82rem; cursor:pointer; font-family:var(--font);
+  }
+  .quiz-exit-btn:hover{ border-color:var(--wrong); color:var(--wrong); }
+  .quiz-progress-track{ height:3px; background:var(--line); flex-shrink:0; }
+  .quiz-progress-fill{ height:100%; background:var(--accent); transition:width .25s ease; width:0%; }
+  .quiz-body{
+    flex:1; overflow-y:auto; padding:48px 24px; display:flex; align-items:flex-start;
+    justify-content:center;
+  }
+  .quiz-card{ width:100%; max-width:700px; }
+  .quiz-card .rs-question{ font-size:1.4rem; }
+  .quiz-card .retry-options{ max-width:600px; margin:0 auto; }
+  .quiz-card .retry-option{ padding:18px 22px; font-size:1.05rem; }
+  .quiz-card .retry-explanation{ max-width:600px; margin:16px auto 0; }
+  .quiz-card .rs-summary .rs-score{ font-size:3rem; }
+  .quiz-card .quiz-stat-row{ display:flex; justify-content:center; gap:32px; margin-bottom:24px; }
+  .quiz-card .quiz-stat{ text-align:center; }
+  .quiz-card .quiz-stat .num{ font-size:1.6rem; font-weight:700; color:var(--text); }
+  .quiz-card .quiz-stat .lbl{ font-size:.78rem; color:var(--text-dim); margin-top:2px; }
+  .quiz-answer-neutral{ border-color:var(--accent) !important; background:var(--accent-dim) !important; }
+  @media (max-width:600px){
+    .quiz-header{ padding:16px 18px; }
+    .quiz-body{ padding:28px 16px; }
+  }
+
+  /* When ?quiz=1 is present, hide the normal app entirely and force the quiz shell full-screen */
+  html.quiz-mode #login-screen{ display:none !important; }
+  html.quiz-mode #app-shell{ display:none !important; }
+  html.quiz-mode #quiz-shell{ display:flex !important; }
   .rs-modal .retry-options{ max-width:520px; margin-left:auto; margin-right:auto; }
   .rs-modal .retry-option{ padding:16px 20px; font-size:1.02rem; }
   .rs-modal .retry-explanation{ max-width:520px; margin-left:auto; margin-right:auto; font-size:.9rem; }
@@ -500,6 +545,12 @@
 </head>
 <body>
 
+<script>
+  // Detect quiz mode as early as possible so the normal login/app UI never flashes.
+  if(new URLSearchParams(location.search).get('quiz') === '1'){
+    document.documentElement.classList.add('quiz-mode');
+  }
+</script>
 
 <div id="login-screen">
   <div class="login-mark">Mistake Log<span class="dot">.</span></div>
@@ -745,16 +796,6 @@
     </div><!-- /.rs-modal -->
   </div><!-- /#add-mistake-overlay -->
 
-  <div class="rs-overlay hidden" id="rs-overlay">
-    <div class="rs-modal">
-      <div class="rs-header">
-        <div class="rs-progress" id="rs-progress">Question 1 of 1</div>
-        <button class="rs-close" id="rs-close">×</button>
-      </div>
-      <div id="rs-body"></div>
-    </div>
-  </div>
-
   <div class="rs-overlay hidden" id="details-overlay">
     <div class="rs-modal details-modal">
       <div class="rs-header">
@@ -777,6 +818,19 @@
   </div>
 
 </div><!-- /#app-shell -->
+
+<!-- ============ FULL-SCREEN QUIZ (opened in a new tab by any Retry action) ============ -->
+<div class="quiz-shell hidden" id="quiz-shell">
+  <div class="quiz-header">
+    <div class="quiz-header-left">
+      <span class="quiz-title" id="quiz-title">Retry</span>
+      <span class="quiz-progress-text" id="quiz-progress-text">Question 1 of 1</span>
+    </div>
+    <button class="quiz-exit-btn" id="quiz-exit-btn">✕ Exit</button>
+  </div>
+  <div class="quiz-progress-track"><div class="quiz-progress-fill" id="quiz-progress-fill"></div></div>
+  <div class="quiz-body" id="quiz-body"></div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -801,6 +855,20 @@
   let currentUser = null;
   let unsubscribeMistakes = null;
   let allMistakes = []; // live cache of {id, ...data} from Firestore
+
+  // ---- Quiz mode (full-screen Retry tab) detection ----
+  const isQuizMode = new URLSearchParams(location.search).get('quiz') === '1';
+  let quizPayload = null;
+  if(isQuizMode){
+    const quizKey = new URLSearchParams(location.search).get('key');
+    if(quizKey){
+      const raw = localStorage.getItem(quizKey);
+      if(raw){
+        try{ quizPayload = JSON.parse(raw); } catch(e){ quizPayload = null; }
+        localStorage.removeItem(quizKey);
+      }
+    }
+  }
 
   // Single source of truth for the 10 CFA subjects — drives the sidebar,
   // the Add-mistake form's Subject dropdown, and the analytics heatmap.
@@ -953,6 +1021,7 @@
           renderAnalytics();
           renderSuggestions();
           renderDueToday();
+          if(isQuizMode) initQuizIfReady();
         }, err=>{
           console.error('[Firestore]', err.message);
           showToast('Could not load your mistakes: ' + err.message, true);
@@ -962,6 +1031,7 @@
       document.getElementById('app-shell').classList.remove('visible');
       if(unsubscribeMistakes){ unsubscribeMistakes(); unsubscribeMistakes = null; }
       allMistakes = [];
+      if(isQuizMode) showQuizError('You are not signed in. Please sign in on the main app tab, then start Retry again.');
     }
   });
 
@@ -1243,14 +1313,14 @@
       const ids = allMistakes
         .filter(m=> m.subject === currentSubject && (m.module || UNCATEGORIZED) === moduleName)
         .map(m=> m.id);
-      startRetrySession(shuffleArray(ids));
+      openRetryInNewTab(shuffleArray(ids), 'module');
       return;
     }
   });
 
   document.getElementById('retry-course-btn').addEventListener('click', ()=>{
     const ids = allMistakes.filter(m=> m.subject === currentSubject).map(m=> m.id);
-    startRetrySession(shuffleArray(ids));
+    openRetryInNewTab(shuffleArray(ids), 'course');
   });
 
   function renderRetryQueue(){
@@ -1327,7 +1397,7 @@
     if(retryBtn){
       const item = retryBtn.closest('.queue-item');
       const id = item.dataset.id;
-      startRetrySession([id]);
+      openRetryInNewTab([id], 'single');
       return;
     }
     const detailsBtn = e.target.closest('[data-action="details"]');
@@ -1476,9 +1546,10 @@
     return gapMs >= 24*60*60*1000;
   }
 
-  async function submitRetryResult(id, wasCorrect){
-    const mistake = allMistakes.find(m=> m.id === id);
-    if(!mistake) return;
+  // Pure function: given a mistake's current data and whether this retry attempt was
+  // correct, compute the Firestore field updates. Shared by the immediate single/module
+  // retry path and the end-of-course batch commit (Retry this Course).
+  function computeRetryUpdate(mistake, wasCorrect){
     const history = (mistake.retryHistory || []).slice();
     history.push({ date: new Date().toISOString(), result: wasCorrect ? 'pass' : 'fail' });
 
@@ -1493,6 +1564,13 @@
       updates.nextReviewAt = firebase.firestore.Timestamp.fromDate(new Date(Date.now() + 1*24*60*60*1000));
       updates.status = 'unresolved';
     }
+    return updates;
+  }
+
+  async function submitRetryResult(id, wasCorrect){
+    const mistake = allMistakes.find(m=> m.id === id);
+    if(!mistake) return;
+    const updates = computeRetryUpdate(mistake, wasCorrect);
 
     try{
       await mistakesCollection().doc(id).update(updates);
@@ -1503,93 +1581,54 @@
     }
   }
 
-  // ════════════════════════════════════════════════
-  // RETRY SESSION — redo an entire filtered set, one question at a time
-  // ════════════════════════════════════════════════
-  let retrySession = null; // { ids: [...], index: 0, correctCount: 0 }
+  // Batch-commit all answers from a completed "Retry this Course" run in one write,
+  // since results are hidden until the whole course is finished.
+  async function submitCourseBatch(answers){ // answers: [{id, wasCorrect}]
+    const batch = fbDb.batch();
+    let touched = 0;
+    answers.forEach(a=>{
+      const mistake = allMistakes.find(m=> m.id === a.id);
+      if(!mistake) return;
+      const updates = computeRetryUpdate(mistake, a.wasCorrect);
+      batch.update(mistakesCollection().doc(a.id), updates);
+      touched++;
+    });
+    if(touched === 0) return;
+    try{
+      await batch.commit();
+    } catch(err){
+      console.error('[Firestore]', err.message);
+      showToast('Could not save course results: ' + err.message, true);
+    }
+  }
 
-  function startRetrySession(ids){
+
+  // ════════════════════════════════════════════════
+  // RETRY — now opens a full-screen quiz experience in a new tab (see "QUIZ TAB" section below)
+  // ════════════════════════════════════════════════
+
+  // Hands a set of mistake ids off to a new tab via a short-lived localStorage payload.
+  // mode: 'single' | 'module' | 'course' — 'course' hides per-question feedback until the end.
+  function openRetryInNewTab(ids, mode){
     if(!ids || ids.length === 0) return;
-    retrySession = { ids, index: 0, correctCount: 0 };
-    document.getElementById('rs-overlay').classList.remove('hidden');
-    renderSessionQuestion();
+    const key = 'retryQuizPayload_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+    const payload = { ids, mode, revealImmediately: mode !== 'course' };
+    try{
+      localStorage.setItem(key, JSON.stringify(payload));
+    } catch(err){
+      console.error('[localStorage]', err.message);
+      showToast('Could not start retry: ' + err.message, true);
+      return;
+    }
+    const url = location.pathname + '?quiz=1&key=' + encodeURIComponent(key);
+    window.open(url, '_blank');
   }
 
   document.getElementById('retry-set-btn').addEventListener('click', ()=>{
     const visibleIds = Array.from(document.querySelectorAll('#queue-list .queue-item:not(.hidden)'))
       .map(item => item.dataset.id);
-    startRetrySession(visibleIds);
+    openRetryInNewTab(visibleIds, 'module');
   });
-
-  document.getElementById('rs-close').addEventListener('click', closeRetrySession);
-
-  function closeRetrySession(){
-    document.getElementById('rs-overlay').classList.add('hidden');
-    retrySession = null;
-  }
-
-  function renderSessionQuestion(){
-    if(!retrySession) return;
-    const total = retrySession.ids.length;
-    const id = retrySession.ids[retrySession.index];
-    const mistake = allMistakes.find(m=> m.id === id);
-    document.getElementById('rs-progress').textContent = `Question ${retrySession.index + 1} of ${total}`;
-
-    if(!mistake){
-      // mistake vanished (e.g. resolved/deleted elsewhere) — skip it
-      advanceSession();
-      return;
-    }
-
-    const body = document.getElementById('rs-body');
-    body.innerHTML = `
-      <div class="rs-subject">${(mistake.subject||'').toUpperCase()}</div>
-      <div class="rs-question">${mistake.questionHtml}</div>
-      ${renderInteractiveOptionsHtml(mistake)}
-      <div class="rs-footer">
-        <button class="rs-next-btn" id="rs-next-btn" disabled>${retrySession.index === total - 1 ? 'Finish' : 'Next'}</button>
-      </div>
-    `;
-
-    bindRetryOptions(body, mistake, (wasCorrect)=>{
-      submitRetryResult(mistake.id, wasCorrect);
-      if(wasCorrect) retrySession.correctCount++;
-      document.getElementById('rs-next-btn').disabled = false;
-    });
-
-    document.getElementById('rs-next-btn').addEventListener('click', ()=>{
-      if(retrySession.index === retrySession.ids.length - 1){
-        showSessionSummary();
-      } else {
-        advanceSession();
-      }
-    });
-  }
-
-  function advanceSession(){
-    if(!retrySession) return;
-    retrySession.index++;
-    if(retrySession.index >= retrySession.ids.length){
-      showSessionSummary();
-    } else {
-      renderSessionQuestion();
-    }
-  }
-
-  function showSessionSummary(){
-    if(!retrySession) return;
-    const total = retrySession.ids.length;
-    const correct = retrySession.correctCount;
-    document.getElementById('rs-progress').textContent = 'Session complete';
-    document.getElementById('rs-body').innerHTML = `
-      <div class="rs-summary">
-        <div class="rs-score">${correct} / ${total}</div>
-        <div class="rs-score-lbl">answered correctly this round</div>
-        <button class="rs-next-btn" id="rs-finish-btn">Close</button>
-      </div>
-    `;
-    document.getElementById('rs-finish-btn').addEventListener('click', closeRetrySession);
-  }
 
   // ============================================================
   // QUESTION EDITOR: paste sanitizing + bold/italic + table widget
@@ -2288,8 +2327,173 @@
     const btn = e.target.closest('[data-action="quick-retry"]');
     if(!btn) return;
     const row = btn.closest('.due-today-row');
-    startRetrySession([row.dataset.id]);
+    openRetryInNewTab([row.dataset.id], 'single');
   });
+
+  // ════════════════════════════════════════════════
+  // QUIZ TAB — full-screen Retry experience (single question / module / whole course)
+  // ════════════════════════════════════════════════
+  let quizState = null;   // { ids, mode, revealImmediately, index, answers: [{id, wasCorrect, timeMs}] }
+  let quizStarted = false;
+
+  function quizModeTitle(mode){
+    if(mode === 'course') return 'Retry this Course';
+    if(mode === 'module') return 'Retry Module';
+    return 'Retry';
+  }
+
+  function showQuizError(msg){
+    const body = document.getElementById('quiz-body');
+    if(!body) return;
+    body.innerHTML = `
+      <div class="quiz-card">
+        <div class="rs-summary">
+          <div class="rs-score-lbl">${msg}</div>
+        </div>
+      </div>
+    `;
+  }
+
+  function initQuizIfReady(){
+    if(!isQuizMode || quizStarted) return;
+    if(!quizPayload){
+      showQuizError('This retry session could not be found — please start Retry again from the app.');
+      return;
+    }
+    const foundIds = quizPayload.ids.filter(id=> allMistakes.some(m=> m.id === id));
+    if(foundIds.length === 0){
+      showQuizError('None of the selected questions could be found — they may have been deleted.');
+      return;
+    }
+    quizStarted = true;
+    quizState = {
+      ids: foundIds,
+      mode: quizPayload.mode,
+      revealImmediately: quizPayload.revealImmediately,
+      index: 0,
+      answers: [],
+      questionStartedAt: null
+    };
+    document.getElementById('quiz-title').textContent = quizModeTitle(quizState.mode);
+    renderQuizQuestion();
+  }
+
+  // Like bindRetryOptions, but never reveals correct/wrong — used for Retry this Course,
+  // where feedback is withheld until the whole course is finished.
+  function bindRetryOptionsNeutral(container, mistake, onAnswered){
+    const optsWrap = container.querySelector('.retry-options');
+    if(!optsWrap) return;
+    optsWrap.addEventListener('click', (e)=>{
+      if(optsWrap.classList.contains('answered')) return;
+      const optionEl = e.target.closest('.retry-option');
+      if(!optionEl) return;
+      optsWrap.classList.add('answered');
+      const chosen = optionEl.dataset.value;
+      const correct = optsWrap.dataset.correct;
+      const wasCorrect = chosen === correct;
+      optionEl.classList.add('quiz-answer-neutral');
+      onAnswered(wasCorrect);
+    });
+  }
+
+  function renderQuizQuestion(){
+    const total = quizState.ids.length;
+    const id = quizState.ids[quizState.index];
+    const mistake = allMistakes.find(m=> m.id === id);
+
+    document.getElementById('quiz-progress-text').textContent = `Question ${quizState.index + 1} of ${total}`;
+    document.getElementById('quiz-progress-fill').style.width = Math.round(quizState.index / total * 100) + '%';
+
+    const body = document.getElementById('quiz-body');
+    body.innerHTML = `
+      <div class="quiz-card">
+        <div class="rs-subject">${(mistake.subject||'').toUpperCase()}${mistake.module ? ' · ' + mistake.module : ''}</div>
+        <div class="rs-question">${mistake.questionHtml}</div>
+        ${renderInteractiveOptionsHtml(mistake)}
+        <div class="rs-footer">
+          <button class="rs-next-btn" id="quiz-next-btn" disabled>${quizState.index === total - 1 ? 'Finish' : 'Next'}</button>
+        </div>
+      </div>
+    `;
+
+    quizState.questionStartedAt = Date.now();
+    const cardEl = body.querySelector('.quiz-card');
+    const onAnswered = (wasCorrect)=>{
+      recordQuizAnswer(id, wasCorrect);
+      document.getElementById('quiz-next-btn').disabled = false;
+    };
+
+    if(quizState.revealImmediately){
+      bindRetryOptions(cardEl, mistake, onAnswered);
+    } else {
+      bindRetryOptionsNeutral(cardEl, mistake, onAnswered);
+    }
+
+    document.getElementById('quiz-next-btn').addEventListener('click', ()=>{
+      if(quizState.index === total - 1){
+        finishQuiz();
+      } else {
+        quizState.index++;
+        renderQuizQuestion();
+      }
+    });
+  }
+
+  function recordQuizAnswer(id, wasCorrect){
+    const timeMs = Date.now() - quizState.questionStartedAt;
+    quizState.answers.push({ id, wasCorrect, timeMs });
+    if(quizState.revealImmediately){
+      // Single-question and module retries update Firestore right away, same as before.
+      submitRetryResult(id, wasCorrect);
+    }
+    // Retry this Course withholds the Firestore update until finishQuiz() batches it all at once.
+  }
+
+  function formatDuration(ms){
+    const totalSeconds = Math.max(0, Math.round(ms / 1000));
+    if(totalSeconds < 60) return totalSeconds + 's';
+    const m = Math.floor(totalSeconds / 60);
+    const s = totalSeconds % 60;
+    return `${m}m ${s}s`;
+  }
+
+  async function finishQuiz(){
+    const total = quizState.answers.length;
+    const correctCount = quizState.answers.filter(a=> a.wasCorrect).length;
+    const percent = total > 0 ? Math.round(correctCount / total * 100) : 0;
+    const totalTimeMs = quizState.answers.reduce((sum,a)=> sum + a.timeMs, 0);
+    const avgTimeMs = total > 0 ? totalTimeMs / total : 0;
+
+    document.getElementById('quiz-progress-text').textContent = 'Complete';
+    document.getElementById('quiz-progress-fill').style.width = '100%';
+
+    document.getElementById('quiz-body').innerHTML = `
+      <div class="quiz-card">
+        <div class="rs-summary">
+          <div class="rs-score">${percent}%</div>
+          <div class="rs-score-lbl">${correctCount} / ${total} correct</div>
+          <div class="quiz-stat-row">
+            <div class="quiz-stat"><div class="num">${formatDuration(avgTimeMs)}</div><div class="lbl">Avg. time / question</div></div>
+            <div class="quiz-stat"><div class="num">${formatDuration(totalTimeMs)}</div><div class="lbl">Total time</div></div>
+          </div>
+          <button class="rs-next-btn" id="quiz-close-btn">Close Tab</button>
+        </div>
+      </div>
+    `;
+
+    if(!quizState.revealImmediately){
+      await submitCourseBatch(quizState.answers.map(a=> ({ id: a.id, wasCorrect: a.wasCorrect })));
+    }
+
+    document.getElementById('quiz-close-btn').addEventListener('click', ()=> window.close());
+  }
+
+  if(isQuizMode){
+    document.getElementById('quiz-exit-btn').addEventListener('click', ()=>{
+      const ok = window.confirm('Exit this retry session? Progress on unanswered questions will be lost.');
+      if(ok) window.close();
+    });
+  }
 </script>
 
 </body>
