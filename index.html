@@ -20,6 +20,10 @@
     --text-faint: #4d4d54;
     --accent: #8fa8c2;
     --accent-dim: #8fa8c22b;
+    --correct: #7fae8f;
+    --correct-dim: #7fae8f22;
+    --wrong: #c97b7b;
+    --wrong-dim: #c97b7b22;
     --font: 'Be Vietnam Pro', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   *{box-sizing:border-box; margin:0; padding:0;}
@@ -332,16 +336,72 @@
   .review-panel .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:3px; }
   .review-panel .rp-value{ color:var(--text); }
   .review-panel .rp-correct{ color:var(--accent); }
-  .review-actions{ display:flex; gap:8px; margin-top:10px; }
-  .btn-correct, .btn-wrong{
-    flex:1; padding:9px; border-radius:4px; font-size:.82rem; cursor:pointer; font-family:var(--font);
-    border:1px solid var(--line); background:var(--surface-2); color:var(--text);
+
+  /* ---------- Interactive retry options (used inline and in retry session) ---------- */
+  .retry-options{ display:flex; flex-direction:column; gap:8px; margin:8px 0 4px; }
+  .retry-option{
+    border:1px solid var(--line); border-radius:5px; padding:10px 14px; font-size:.87rem;
+    color:var(--text); cursor:pointer; background:var(--surface-2); transition:.12s;
   }
-  .btn-correct:hover{ border-color:var(--accent); }
-  .btn-wrong:hover{ border-color:#c97b7b; }
+  .retry-option:hover{ border-color:var(--accent); }
+  .retry-options.answered .retry-option{ cursor:default; }
+  .retry-options.answered .retry-option:hover{ border-color:var(--line); }
+  .retry-option.opt-correct{ border-color:var(--correct); background:var(--correct-dim); color:var(--text); }
+  .retry-option.opt-wrong{ border-color:var(--wrong); background:var(--wrong-dim); color:var(--text); }
+  .retry-explanation{
+    margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
+    font-size:.83rem; color:var(--text-dim); line-height:1.55;
+  }
+  .retry-explanation .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:4px; }
+
+  /* ---------- Retry-this-set bar ---------- */
+  .retry-set-bar{
+    display:flex; align-items:center; justify-content:space-between; gap:12px;
+    background:var(--surface); border:1px solid var(--line); border-radius:6px;
+    padding:12px 16px; margin-bottom:16px;
+  }
+  .retry-set-bar .rsb-text{ font-size:.85rem; color:var(--text-dim); }
+  .retry-set-bar .rsb-text b{ color:var(--text); }
+  .retry-set-bar button{
+    background:var(--text); color:var(--bg); border:none; border-radius:4px;
+    padding:9px 18px; font-weight:700; font-size:.82rem; cursor:pointer; font-family:var(--font); white-space:nowrap;
+  }
+  .retry-set-bar button:hover{ background:#fff; }
+  .retry-set-bar.hidden{ display:none; }
+
+  /* ---------- Retry session overlay (redo a whole filtered set) ---------- */
+  .rs-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.7); z-index:200;
+    display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .rs-overlay.hidden{ display:none; }
+  .rs-modal{
+    background:var(--surface); border:1px solid var(--line); border-radius:8px;
+    max-width:560px; width:100%; max-height:88vh; overflow-y:auto; padding:24px;
+  }
+  .rs-header{ display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; }
+  .rs-progress{ font-size:.78rem; color:var(--text-dim); }
+  .rs-close{
+    background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:4px;
+    width:26px; height:26px; cursor:pointer; font-size:.9rem; font-family:var(--font);
+  }
+  .rs-close:hover{ border-color:var(--accent); color:var(--text); }
+  .rs-subject{ font-size:.72rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:.04em; margin-bottom:12px; }
+  .rs-question{ font-size:.92rem; color:var(--text); line-height:1.55; margin-bottom:6px; }
+  .rs-footer{ display:flex; justify-content:flex-end; margin-top:16px; }
+  .rs-next-btn{
+    background:var(--text); color:var(--bg); border:none; border-radius:4px;
+    padding:10px 22px; font-weight:700; font-size:.85rem; cursor:pointer; font-family:var(--font);
+  }
+  .rs-next-btn:disabled{ opacity:.35; cursor:default; }
+  .rs-next-btn:not(:disabled):hover{ background:#fff; }
+  .rs-summary{ text-align:center; padding:20px 0; }
+  .rs-summary .rs-score{ font-size:2rem; font-weight:700; color:var(--text); margin-bottom:6px; }
+  .rs-summary .rs-score-lbl{ color:var(--text-dim); font-size:.85rem; margin-bottom:20px; }
 </style>
 </head>
 <body>
+
 
 <div id="login-screen">
   <div class="login-mark">Mistake Log<span class="dot">.</span></div>
@@ -507,10 +567,25 @@
       </label>
     </div>
 
+    <div class="retry-set-bar hidden" id="retry-set-bar">
+      <span class="rsb-text"><b id="retry-set-count">0</b> mistakes match this filter</span>
+      <button id="retry-set-btn">Retry this set</button>
+    </div>
+
     <div id="queue-list"></div>
 
     <div class="empty-state" id="empty-state" style="display:none;">No mistakes match this filter — or nothing is due yet.</div>
   </section>
+
+  <div class="rs-overlay hidden" id="rs-overlay">
+    <div class="rs-modal">
+      <div class="rs-header">
+        <div class="rs-progress" id="rs-progress">Question 1 of 1</div>
+        <button class="rs-close" id="rs-close">×</button>
+      </div>
+      <div id="rs-body"></div>
+    </div>
+  </div>
 
   <!-- ============ TAB 3: ANALYTICS ============ -->
   <section class="panel" id="tab-analytics">
@@ -791,33 +866,54 @@
       const mistake = allMistakes.find(m=> m.id === id);
       if(!mistake) return;
       slot.innerHTML = buildReviewPanelHtml(mistake);
+      bindRetryOptions(slot, mistake, (wasCorrect)=> submitRetryResult(id, wasCorrect));
       return;
-    }
-    const resultBtn = e.target.closest('[data-result]');
-    if(resultBtn){
-      const item = resultBtn.closest('.queue-item');
-      const id = item.dataset.id;
-      const wasCorrect = resultBtn.dataset.result === 'correct';
-      submitRetryResult(id, wasCorrect);
     }
   });
 
-  function buildReviewPanelHtml(m){
+  // Shared interactive answer-picking UI, used both inline (single item) and in the retry session modal
+  function renderInteractiveOptionsHtml(m){
     const opts = m.options || {};
+    return `
+      <div class="retry-options" data-correct="${m.correctAnswer||''}">
+        <div class="retry-option" data-value="A">A. ${opts.A||''}</div>
+        <div class="retry-option" data-value="B">B. ${opts.B||''}</div>
+        <div class="retry-option" data-value="C">C. ${opts.C||''}</div>
+      </div>
+      <div class="retry-explanation" style="display:none;">
+        <div class="rp-label">Explanation</div>
+        <div>${m.explanation || 'No explanation was saved for this mistake.'}</div>
+      </div>
+    `;
+  }
+
+  function bindRetryOptions(container, mistake, onAnswered){
+    const optsWrap = container.querySelector('.retry-options');
+    const explEl = container.querySelector('.retry-explanation');
+    if(!optsWrap) return;
+    optsWrap.addEventListener('click', (e)=>{
+      if(optsWrap.classList.contains('answered')) return;
+      const optionEl = e.target.closest('.retry-option');
+      if(!optionEl) return;
+      optsWrap.classList.add('answered');
+      const chosen = optionEl.dataset.value;
+      const correct = optsWrap.dataset.correct;
+      const wasCorrect = chosen === correct;
+      optionEl.classList.add(wasCorrect ? 'opt-correct' : 'opt-wrong');
+      if(!wasCorrect){
+        const correctEl = optsWrap.querySelector(`.retry-option[data-value="${correct}"]`);
+        if(correctEl) correctEl.classList.add('opt-correct');
+      }
+      if(explEl) explEl.style.display = 'block';
+      onAnswered(wasCorrect);
+    });
+  }
+
+  function buildReviewPanelHtml(m){
     return `
       <div class="review-panel">
         <div class="rp-block"><div class="rp-label">Question</div><div class="rp-value">${m.questionHtml}</div></div>
-        <div class="rp-block"><div class="rp-label">Options</div>
-          <div class="rp-value">A. ${opts.A||''}</div>
-          <div class="rp-value">B. ${opts.B||''}</div>
-          <div class="rp-value">C. ${opts.C||''}</div>
-        </div>
-        <div class="rp-block"><div class="rp-label">Correct answer</div><div class="rp-value rp-correct">${m.correctAnswer||'—'}</div></div>
-        ${m.explanation ? `<div class="rp-block"><div class="rp-label">Explanation</div><div class="rp-value">${m.explanation}</div></div>` : ''}
-        <div class="review-actions">
-          <button class="btn-wrong" data-result="wrong">Got it wrong again</button>
-          <button class="btn-correct" data-result="correct">Got it right</button>
-        </div>
+        ${renderInteractiveOptionsHtml(m)}
       </div>
     `;
   }
@@ -854,6 +950,90 @@
     }
   }
 
+  // ════════════════════════════════════════════════
+  // RETRY SESSION — redo an entire filtered set, one question at a time
+  // ════════════════════════════════════════════════
+  let retrySession = null; // { ids: [...], index: 0, correctCount: 0 }
+
+  document.getElementById('retry-set-btn').addEventListener('click', ()=>{
+    const visibleIds = Array.from(document.querySelectorAll('#queue-list .queue-item:not(.hidden)'))
+      .map(item => item.dataset.id);
+    if(visibleIds.length === 0) return;
+    retrySession = { ids: visibleIds, index: 0, correctCount: 0 };
+    document.getElementById('rs-overlay').classList.remove('hidden');
+    renderSessionQuestion();
+  });
+
+  document.getElementById('rs-close').addEventListener('click', closeRetrySession);
+
+  function closeRetrySession(){
+    document.getElementById('rs-overlay').classList.add('hidden');
+    retrySession = null;
+  }
+
+  function renderSessionQuestion(){
+    if(!retrySession) return;
+    const total = retrySession.ids.length;
+    const id = retrySession.ids[retrySession.index];
+    const mistake = allMistakes.find(m=> m.id === id);
+    document.getElementById('rs-progress').textContent = `Question ${retrySession.index + 1} of ${total}`;
+
+    if(!mistake){
+      // mistake vanished (e.g. resolved/deleted elsewhere) — skip it
+      advanceSession();
+      return;
+    }
+
+    const body = document.getElementById('rs-body');
+    body.innerHTML = `
+      <div class="rs-subject">${(mistake.subject||'').toUpperCase()}</div>
+      <div class="rs-question">${mistake.questionHtml}</div>
+      ${renderInteractiveOptionsHtml(mistake)}
+      <div class="rs-footer">
+        <button class="rs-next-btn" id="rs-next-btn" disabled>${retrySession.index === total - 1 ? 'Finish' : 'Next'}</button>
+      </div>
+    `;
+
+    bindRetryOptions(body, mistake, (wasCorrect)=>{
+      submitRetryResult(mistake.id, wasCorrect);
+      if(wasCorrect) retrySession.correctCount++;
+      document.getElementById('rs-next-btn').disabled = false;
+    });
+
+    document.getElementById('rs-next-btn').addEventListener('click', ()=>{
+      if(retrySession.index === retrySession.ids.length - 1){
+        showSessionSummary();
+      } else {
+        advanceSession();
+      }
+    });
+  }
+
+  function advanceSession(){
+    if(!retrySession) return;
+    retrySession.index++;
+    if(retrySession.index >= retrySession.ids.length){
+      showSessionSummary();
+    } else {
+      renderSessionQuestion();
+    }
+  }
+
+  function showSessionSummary(){
+    if(!retrySession) return;
+    const total = retrySession.ids.length;
+    const correct = retrySession.correctCount;
+    document.getElementById('rs-progress').textContent = 'Session complete';
+    document.getElementById('rs-body').innerHTML = `
+      <div class="rs-summary">
+        <div class="rs-score">${correct} / ${total}</div>
+        <div class="rs-score-lbl">answered correctly this round</div>
+        <button class="rs-next-btn" id="rs-finish-btn">Close</button>
+      </div>
+    `;
+    document.getElementById('rs-finish-btn').addEventListener('click', closeRetrySession);
+  }
+
   // ---- Tab switching ----
   document.querySelectorAll('nav.tabs button').forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -878,11 +1058,6 @@
       return document.createDocumentFragment();
     }
     const tag = node.tagName;
-    // tables pasted from elsewhere become plain text content (structure is created via the + Table button instead)
-    if(tag === 'TABLE'){
-      const text = node.textContent.trim();
-      return document.createTextNode(text);
-    }
     const style = node.getAttribute('style') || '';
     const isBold = tag === 'B' || tag === 'STRONG' || /font-weight\s*:\s*(bold|[6-9]00)/i.test(style);
     const isItalic = tag === 'I' || tag === 'EM' || /font-style\s*:\s*italic/i.test(style);
@@ -911,20 +1086,98 @@
     return wrapper.innerHTML;
   }
 
+  function sanitizeCellHTML(cell){
+    const frag = document.createDocumentFragment();
+    cell.childNodes.forEach(c => frag.appendChild(sanitizeNode(c)));
+    const wrapper = document.createElement('div');
+    wrapper.appendChild(frag);
+    return wrapper.innerHTML;
+  }
+
+  function insertWidgetAtCursor(widget){
+    const sel = window.getSelection();
+    let range;
+    if(sel && sel.rangeCount > 0 && questionInput.contains(sel.anchorNode)){
+      range = sel.getRangeAt(0);
+    } else {
+      range = document.createRange();
+      range.selectNodeContents(questionInput);
+      range.collapse(false);
+    }
+    range.deleteContents();
+    range.insertNode(widget);
+    const br = document.createElement('br');
+    widget.after(br);
+    range.setStartAfter(br);
+    range.collapse(true);
+    sel.removeAllRanges();
+    sel.addRange(range);
+    if(widget._sync){
+      widget._sync();
+      requestAnimationFrame(()=> widget._sync());
+    }
+  }
+
+  function insertSanitizedHTML(nodeList){
+    if(nodeList.length === 0) return;
+    const wrapper = document.createElement('div');
+    nodeList.forEach(n => wrapper.appendChild(n));
+    document.execCommand('insertHTML', false, wrapper.innerHTML);
+  }
+
   questionInput.addEventListener('paste', (e)=>{
     e.preventDefault();
     const clipboard = e.clipboardData || window.clipboardData;
     const html = clipboard.getData('text/html');
-    let clean;
-    if(html){
-      clean = sanitizeHTML(html);
-    } else {
+
+    if(!html){
       const text = clipboard.getData('text/plain');
-      clean = text
+      const clean = text
         .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
         .split('\n').join('<br>');
+      document.execCommand('insertHTML', false, clean);
+      return;
     }
-    document.execCommand('insertHTML', false, clean);
+
+    // Walk the pasted content in order, splitting it into text chunks and table chunks.
+    // Tables become live, fully editable table widgets automatically — no manual "+ Table" needed.
+    const doc = new DOMParser().parseFromString(html, 'text/html');
+    const chunks = [];
+    function walk(node){
+      if(node.nodeType === Node.ELEMENT_NODE && node.tagName === 'TABLE'){
+        chunks.push({ type:'table', el: node });
+        return;
+      }
+      if(node.nodeType === Node.ELEMENT_NODE && node.querySelector && node.querySelector('table')){
+        // this element wraps a table somewhere inside it (common with Word/Google Docs) — recurse into its children
+        node.childNodes.forEach(walk);
+        return;
+      }
+      chunks.push({ type:'node', node: sanitizeNode(node) });
+    }
+    doc.body.childNodes.forEach(walk);
+
+    let textBuffer = [];
+    function flushText(){
+      insertSanitizedHTML(textBuffer);
+      textBuffer = [];
+    }
+
+    chunks.forEach(chunk=>{
+      if(chunk.type === 'node'){
+        textBuffer.push(chunk.node);
+      } else {
+        flushText();
+        const rows = Array.from(chunk.el.rows).map(row =>
+          Array.from(row.cells).map(cell => sanitizeCellHTML(cell))
+        );
+        if(rows.length > 0 && rows[0].length > 0){
+          const widget = buildTableWidget(rows.length, rows[0].length, rows);
+          insertWidgetAtCursor(widget);
+        }
+      }
+    });
+    flushText();
   });
 
   document.querySelectorAll('.editor-toolbar button[data-cmd]').forEach(btn=>{
@@ -936,7 +1189,12 @@
   });
 
   // ---- Notion-like table widget ----
-  function buildTableWidget(initialRows, initialCols){
+  // cellData (optional): 2D array of sanitized innerHTML strings, e.g. from a pasted table
+  function buildTableWidget(initialRows, initialCols, cellData){
+    if(cellData && cellData.length > 0){
+      initialRows = cellData.length;
+      initialCols = cellData[0].length;
+    }
     const outer = document.createElement('div');
     outer.className = 'q-table-outer';
     outer.contentEditable = 'false';
@@ -1022,7 +1280,7 @@
       return td;
     }
 
-    function makeDataRow(){
+    function makeDataRow(rowData){
       const tr = document.createElement('tr');
       const ctrl = document.createElement('td');
       ctrl.className = 'q-ctrl-col';
@@ -1038,16 +1296,17 @@
       del.addEventListener('click', ()=> deleteRow(tr));
       tr.appendChild(ctrl);
       for(let c=0; c<colCount(); c++){
-        tr.appendChild(makeDataCell());
+        tr.appendChild(makeDataCell(rowData ? rowData[c] : undefined));
       }
       return tr;
     }
 
-    function makeDataCell(){
+    function makeDataCell(html){
       const td = document.createElement('td');
       const cell = document.createElement('div');
       cell.className = 'q-cell';
       cell.contentEditable = 'true';
+      if(html) cell.innerHTML = html;
       td.appendChild(cell);
       return td;
     }
@@ -1139,7 +1398,7 @@
     // build initial structure
     tbody.appendChild(makeHeaderRow());
     for(let r=0; r<initialRows; r++){
-      tbody.appendChild(makeDataRow());
+      tbody.appendChild(makeDataRow(cellData ? cellData[r] : undefined));
     }
 
     addColBtn.addEventListener('mousedown', (e)=> e.preventDefault());
@@ -1155,27 +1414,7 @@
   insertTableBtn.addEventListener('click', ()=>{
     questionInput.focus();
     const widget = buildTableWidget(3, 3);
-    const sel = window.getSelection();
-    let range;
-    if(sel && sel.rangeCount > 0 && questionInput.contains(sel.anchorNode)){
-      range = sel.getRangeAt(0);
-    } else {
-      range = document.createRange();
-      range.selectNodeContents(questionInput);
-      range.collapse(false);
-    }
-    range.deleteContents();
-    range.insertNode(widget);
-    const br = document.createElement('br');
-    widget.after(br);
-    range.setStartAfter(br);
-    range.collapse(true);
-    sel.removeAllRanges();
-    sel.addRange(range);
-    if(widget._sync){
-      widget._sync();
-      requestAnimationFrame(()=> widget._sync());
-    }
+    insertWidgetAtCursor(widget);
   });
 
   // ---- Answer options radio behavior ----
@@ -1212,6 +1451,10 @@
     if(queueItems.length > 0){
       emptyState.style.display = visibleCount === 0 ? 'block' : 'none';
     }
+
+    const setBar = document.getElementById('retry-set-bar');
+    document.getElementById('retry-set-count').textContent = visibleCount;
+    setBar.classList.toggle('hidden', visibleCount < 2);
   }
 
   document.querySelectorAll('.filter-row').forEach(row=>{
