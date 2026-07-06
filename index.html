@@ -47,26 +47,51 @@
   .meta-stat{ font-size:.8rem; color:var(--text-dim); border:1px solid var(--line); border-radius:3px; padding:5px 12px; }
   .meta-stat b{ color:var(--text); font-weight:700; }
 
-  nav.tabs{ display:flex; gap:2px; padding: 0 32px; border-bottom:1px solid var(--line); overflow-x:auto; }
-  nav.tabs button{
-    background:none; border:none; color:var(--text-dim); font-family:var(--font);
-    font-size:.88rem; padding:16px 18px; cursor:pointer; position:relative; white-space:nowrap;
-  }
-  nav.tabs button.active{ color:var(--text); }
-  nav.tabs button.active::after{
-    content:''; position:absolute; bottom:-1px; left:18px; right:18px; height:1px; background: var(--accent);
-  }
-  nav.tabs button .count{
-    background: var(--surface-2); color:var(--text-dim); border-radius:3px; font-size:.7rem;
-    padding:1px 6px; margin-left:7px;
-  }
+  .app-layout{ display:flex; align-items:flex-start; }
 
-  main{ padding: 32px; max-width: 1080px; margin: 0 auto;}
+  .sidebar{ width:250px; flex-shrink:0; border-right:1px solid var(--line); padding:18px 0; position:sticky; top:0; align-self:flex-start; height:100vh; overflow-y:auto; }
+  .sidebar-section-label{ font-size:.66rem; text-transform:uppercase; letter-spacing:.06em; color:var(--text-faint); padding:20px 24px 8px; }
+  .sidebar-item{
+    display:block; width:100%; text-align:left; background:none; border:none; border-left:2px solid transparent;
+    color:var(--text-dim); font-family:var(--font); font-size:.87rem; padding:11px 24px; cursor:pointer;
+  }
+  .sidebar-item:hover{ color:var(--text); background:var(--surface-2); }
+  .sidebar-item.active{ color:var(--text); background:var(--surface-2); border-left-color:var(--accent); }
+
+  main{ padding: 32px; flex:1; min-width:0; max-width: 1080px; }
   .panel{ display:none; }
   .panel.active{ display:block; }
 
+  @media (max-width:860px){
+    .app-layout{ flex-direction:column; }
+    .sidebar{ position:static; width:100%; height:auto; display:flex; overflow-x:auto; border-right:none; border-bottom:1px solid var(--line); padding:8px 10px; gap:2px; }
+    .sidebar-section-label{ display:none; }
+    .sidebar-item{ width:auto; white-space:nowrap; border-left:none; border-bottom:2px solid transparent; padding:10px 14px; }
+    .sidebar-item.active{ border-left-color:transparent; border-bottom-color:var(--accent); }
+    main{ padding:20px 18px; max-width:none; }
+  }
+
   h2.section-title{ font-size:1.1rem; font-weight:700; color:var(--text); margin-bottom:5px; }
   p.section-hint{ color:var(--text-dim); font-size:.85rem; margin-bottom:22px; }
+
+  /* ---------- Subject view header ---------- */
+  .subject-header{ display:flex; align-items:center; justify-content:space-between; gap:14px; margin-bottom:6px; flex-wrap:wrap; }
+  .subject-header h2{ font-size:1.2rem; font-weight:700; color:var(--text); }
+  .btn-add-mistake{
+    background:var(--text); color:var(--bg); border:none; border-radius:5px;
+    padding:10px 18px; font-weight:700; font-size:.85rem; cursor:pointer; font-family:var(--font); white-space:nowrap;
+  }
+  .btn-add-mistake:hover{ background:#fff; }
+
+  /* ---------- Home dashboard: due today ---------- */
+  .due-today-row{
+    display:flex; align-items:center; gap:12px; padding:10px 14px; border:1px solid var(--line);
+    border-radius:5px; background:var(--surface); margin-bottom:6px;
+  }
+  .due-today-row .dt-text{ flex:1; font-size:.85rem; color:var(--text); }
+  .due-today-row .subject-badge{ margin-bottom:0; white-space:nowrap; }
+  .due-today-row .due{ font-size:.76rem; color:var(--text-dim); white-space:nowrap; }
+  .due-today-row .due.urgent{ color:var(--wrong); }
 
   /* ---------- FORM ---------- */
   .card{ background: var(--surface); border:1px solid var(--line); border-radius:6px; padding:24px; }
@@ -221,7 +246,7 @@
   .queue-item .status-bar{ width:3px; align-self:stretch; border-radius:2px; background:var(--line); flex-shrink:0; }
   .queue-item.overdue .status-bar{ background: var(--text); }
   .queue-item .meta{ flex:1; }
-  .queue-item .subject-badge{ font-size:.7rem; color:var(--text-dim); display:inline-block; margin-bottom:5px; letter-spacing:.02em;}
+  .subject-badge{ font-size:.7rem; color:var(--text-dim); display:inline-block; margin-bottom:5px; letter-spacing:.02em;}
   .queue-item .q-text{ font-size:.9rem; color:var(--text); }
   .queue-item .err-tags{ margin-top:7px; display:flex; gap:6px; flex-wrap:wrap;}
   .mini-tag{ font-size:.7rem; padding:2px 8px; border-radius:3px; border:1px solid var(--line); color:var(--text-dim);}
@@ -311,7 +336,7 @@
     .grid2{ grid-template-columns:1fr; }
     .stat-row{ grid-template-columns:repeat(2,1fr); }
     .analytics-grid{ grid-template-columns:1fr; }
-    header, nav.tabs, main{ padding-left:18px; padding-right:18px; }
+    header{ padding-left:18px; padding-right:18px; }
     .options-header, .option-row{ grid-template-columns: 1fr 70px 70px; }
   }
 
@@ -431,6 +456,7 @@
 
   /* ---------- Details modal ---------- */
   .details-modal{ text-align:left; max-width:640px; }
+  .add-mistake-modal{ text-align:left; max-width:760px; }
   .details-modal .rs-progress{ text-transform:uppercase; letter-spacing:.05em; font-size:.72rem; }
   .details-block{ margin-bottom:18px; }
   .details-block .rp-label{ font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-faint); margin-bottom:5px; }
@@ -471,20 +497,106 @@
   </div>
 </header>
 
-<nav class="tabs">
-  <button class="active" data-tab="log">Log Mistake</button>
-  <button data-tab="queue">Retry Queue</button>
-  <button data-tab="analytics">Analytics</button>
-  <button data-tab="suggest">Suggestions</button>
-</nav>
+<div class="app-layout">
+<aside class="sidebar" id="sidebar">
+  <button class="sidebar-item active" data-view="home">🏠 Trang chủ</button>
+  <div class="sidebar-section-label">Môn học</div>
+  <!-- Subject items injected by JS from the SUBJECTS list -->
+</aside>
 
 <main>
 
-  <!-- ============ TAB 1: LOG MISTAKE ============ -->
-  <section class="panel active" id="tab-log">
-    <h2 class="section-title">Log a new mistake</h2>
-    <p class="section-hint">Enter this right after you get it wrong — details fade fast.</p>
+  <!-- ============ HOME DASHBOARD ============ -->
+  <section class="panel active" id="view-home">
+    <h2 class="section-title">Trang chủ</h2>
+    <p class="section-hint">Tổng quan toàn bộ các môn — chọn 1 môn ở sidebar để xem chi tiết và retry.</p>
+
+    <div class="stat-row">
+      <div class="stat-card"><div class="num" id="an-unresolved">—</div><div class="lbl">Unresolved mistakes</div></div>
+      <div class="stat-card"><div class="num" id="an-top-error">—</div><div class="lbl" id="an-top-error-lbl">Top error type</div></div>
+      <div class="stat-card"><div class="num" id="an-weak-subject">—</div><div class="lbl">Weakest subject</div></div>
+      <div class="stat-card"><div class="num" id="an-resolve-rate">—</div><div class="lbl">Resolve rate</div></div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Cần retry hôm nay</h3>
+      <div id="due-today-list"></div>
+    </div>
+
+    <div class="analytics-grid">
+      <div class="chart-card">
+        <h3>Subject × error type</h3>
+        <div class="heatmap-scroll"><div class="heatmap" id="heatmap"></div></div>
+      </div>
+      <div class="chart-card">
+        <h3>Share by error type</h3>
+        <div id="bar-list"></div>
+      </div>
+    </div>
+
+    <div class="chart-card">
+      <h3>Weekly trend — last 8 weeks</h3>
+      <svg class="trend-svg" id="trend-svg" viewBox="0 0 600 150"></svg>
+    </div>
+
+    <div class="chart-card">
+      <h3>Suggestions</h3>
+      <div id="suggestions-list"></div>
+    </div>
+  </section>
+
+  <!-- ============ SUBJECT VIEW (shared by all 10 subjects) ============ -->
+  <section class="panel" id="view-subject">
+    <div class="subject-header">
+      <h2 id="subject-title">Subject</h2>
+      <button class="btn-add-mistake" id="add-mistake-btn">+ Add wrong questions</button>
+    </div>
+    <p class="section-hint">Ordered by how overdue and how severe.</p>
+
+    <div class="filter-groups">
+      <div class="filter-group">
+        <span class="filter-label">Error type</span>
+        <div class="filter-row" data-group="error">
+          <span class="filter-chip on" data-filter="all">All</span>
+          <span class="filter-chip" data-filter="conceptual">Conceptual</span>
+          <span class="filter-chip" data-filter="calculation">Calculation</span>
+          <span class="filter-chip" data-filter="trap">Trap</span>
+          <span class="filter-chip" data-filter="forgot">Forgot</span>
+        </div>
+      </div>
+      <label class="overdue-toggle">
+        <input type="checkbox" id="overdue-only">
+        Overdue only
+      </label>
+      <label class="overdue-toggle">
+        <input type="checkbox" id="show-resolved-only">
+        Hiện câu đã resolve
+      </label>
+    </div>
+
+    <div class="retry-set-bar hidden" id="retry-set-bar">
+      <span class="rsb-text"><b id="retry-set-count">0</b> mistakes match this filter</span>
+      <button id="retry-set-btn">Retry this set</button>
+    </div>
+
+    <div id="queue-list"></div>
+
+    <div class="empty-state" id="empty-state" style="display:none;">No mistakes match this filter — or nothing is due yet.</div>
+  </section>
+</main>
+</div>
+
+  <div class="rs-overlay hidden" id="add-mistake-overlay">
+    <div class="rs-modal add-mistake-modal">
+      <div class="rs-header">
+        <div class="rs-progress">Add wrong questions</div>
+        <button class="rs-close" id="add-mistake-close">×</button>
+      </div>
+
+  <!-- ============ ADD MISTAKE FORM (was: LOG MISTAKE tab) ============ -->
+  <section id="tab-log">
     <div class="card">
+
       <div class="grid2">
         <div class="field">
           <label>Subject</label>
@@ -573,57 +685,8 @@
     </div>
   </section>
 
-  <!-- ============ TAB 2: RETRY QUEUE ============ -->
-  <section class="panel" id="tab-queue">
-    <h2 class="section-title">Retry queue</h2>
-    <p class="section-hint">Ordered by how overdue and how severe.</p>
-
-    <div class="filter-groups">
-      <div class="filter-group">
-        <span class="filter-label">Subject</span>
-        <div class="filter-row" data-group="subject">
-          <span class="filter-chip on" data-filter="all">All</span>
-          <span class="filter-chip" data-filter="fixed-income">Fixed Income</span>
-          <span class="filter-chip" data-filter="equity">Equity Investments</span>
-          <span class="filter-chip" data-filter="fra">Financial Statement Analysis</span>
-          <span class="filter-chip" data-filter="quant">Quantitative Methods</span>
-          <span class="filter-chip" data-filter="economics">Economics</span>
-          <span class="filter-chip" data-filter="ethics">Ethics & Professional Standards</span>
-          <span class="filter-chip" data-filter="portfolio">Portfolio Management</span>
-          <span class="filter-chip" data-filter="derivatives">Derivatives</span>
-          <span class="filter-chip" data-filter="alt-investments">Alternative Investments</span>
-          <span class="filter-chip" data-filter="corporate">Corporate Issuers</span>
-        </div>
-      </div>
-      <div class="filter-group">
-        <span class="filter-label">Error type</span>
-        <div class="filter-row" data-group="error">
-          <span class="filter-chip on" data-filter="all">All</span>
-          <span class="filter-chip" data-filter="conceptual">Conceptual</span>
-          <span class="filter-chip" data-filter="calculation">Calculation</span>
-          <span class="filter-chip" data-filter="trap">Trap</span>
-          <span class="filter-chip" data-filter="forgot">Forgot</span>
-        </div>
-      </div>
-      <label class="overdue-toggle">
-        <input type="checkbox" id="overdue-only">
-        Overdue only
-      </label>
-      <label class="overdue-toggle">
-        <input type="checkbox" id="show-resolved-only">
-        Hiện câu đã resolve
-      </label>
-    </div>
-
-    <div class="retry-set-bar hidden" id="retry-set-bar">
-      <span class="rsb-text"><b id="retry-set-count">0</b> mistakes match this filter</span>
-      <button id="retry-set-btn">Retry this set</button>
-    </div>
-
-    <div id="queue-list"></div>
-
-    <div class="empty-state" id="empty-state" style="display:none;">No mistakes match this filter — or nothing is due yet.</div>
-  </section>
+    </div><!-- /.rs-modal -->
+  </div><!-- /#add-mistake-overlay -->
 
   <div class="rs-overlay hidden" id="rs-overlay">
     <div class="rs-modal">
@@ -644,46 +707,6 @@
       <div id="details-body"></div>
     </div>
   </div>
-
-  <!-- ============ TAB 3: ANALYTICS ============ -->
-  <section class="panel" id="tab-analytics">
-    <h2 class="section-title">Error analytics</h2>
-    <p class="section-hint">Spot the pattern before deciding what to fix next.</p>
-
-    <div class="stat-row">
-      <div class="stat-card"><div class="num" id="an-unresolved">—</div><div class="lbl">Unresolved mistakes</div></div>
-      <div class="stat-card"><div class="num" id="an-top-error">—</div><div class="lbl" id="an-top-error-lbl">Top error type</div></div>
-      <div class="stat-card"><div class="num" id="an-weak-subject">—</div><div class="lbl">Weakest subject</div></div>
-      <div class="stat-card"><div class="num" id="an-resolve-rate">—</div><div class="lbl">Resolve rate</div></div>
-    </div>
-
-    <div class="analytics-grid">
-      <div class="chart-card">
-        <h3>Subject × error type</h3>
-        <div class="heatmap-scroll"><div class="heatmap" id="heatmap"></div></div>
-      </div>
-      <div class="chart-card">
-        <h3>Share by error type</h3>
-        <div id="bar-list"></div>
-      </div>
-    </div>
-
-    <div class="chart-card">
-      <h3>Weekly trend — last 8 weeks</h3>
-      <svg class="trend-svg" id="trend-svg" viewBox="0 0 600 150"></svg>
-    </div>
-  </section>
-
-  <!-- ============ TAB 4: SUGGESTIONS ============ -->
-  <section class="panel" id="tab-suggest">
-    <h2 class="section-title">Suggestions</h2>
-    <p class="section-hint">Generated from your logged mistakes — not generic advice.</p>
-
-    <div id="suggestions-list"></div>
-  </section>
-  </section>
-
-</main>
 
 </div><!-- /#app-shell -->
 
@@ -710,6 +733,63 @@
   let currentUser = null;
   let unsubscribeMistakes = null;
   let allMistakes = []; // live cache of {id, ...data} from Firestore
+
+  // Single source of truth for the 10 CFA subjects — drives the sidebar,
+  // the Add-mistake form's Subject dropdown, and the analytics heatmap.
+  const SUBJECTS = [
+    'Fixed Income','Equity Investments','Financial Statement Analysis','Quantitative Methods',
+    'Economics','Ethics & Professional Standards','Portfolio Management','Derivatives',
+    'Alternative Investments','Corporate Issuers'
+  ];
+
+  let currentView = 'home';   // 'home' | 'subject'
+  let currentSubject = null;  // subject name when currentView === 'subject'
+
+  function buildSidebar(){
+    const sidebar = document.getElementById('sidebar');
+    SUBJECTS.forEach(subject=>{
+      const btn = document.createElement('button');
+      btn.className = 'sidebar-item';
+      btn.dataset.view = 'subject';
+      btn.dataset.subject = subject;
+      btn.textContent = subject;
+      sidebar.appendChild(btn);
+    });
+    sidebar.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.sidebar-item');
+      if(!btn) return;
+      selectView(btn.dataset.view, btn.dataset.subject || null);
+    });
+  }
+
+  function buildSubjectDropdown(){
+    const select = document.getElementById('f-subject');
+    select.innerHTML = SUBJECTS.map(s=> `<option>${s}</option>`).join('');
+  }
+
+  function selectView(view, subject){
+    currentView = view;
+    currentSubject = subject || null;
+
+    document.querySelectorAll('.sidebar-item').forEach(b=>{
+      const isActive = b.dataset.view === view && (view !== 'subject' || b.dataset.subject === subject);
+      b.classList.toggle('active', isActive);
+    });
+    document.getElementById('view-home').classList.toggle('active', view === 'home');
+    document.getElementById('view-subject').classList.toggle('active', view === 'subject');
+
+    if(view === 'subject'){
+      document.getElementById('subject-title').textContent = subject;
+      renderRetryQueue();
+    } else {
+      renderAnalytics();
+      renderSuggestions();
+      renderDueToday();
+    }
+  }
+
+  buildSidebar();
+  buildSubjectDropdown();
 
   function showToast(msg, isError){
     const t = document.getElementById('toast');
@@ -763,6 +843,7 @@
           updateHeaderStats();
           renderAnalytics();
           renderSuggestions();
+          renderDueToday();
         }, err=>{
           console.error('[Firestore]', err.message);
           showToast('Could not load your mistakes: ' + err.message, true);
@@ -782,6 +863,17 @@
     document.getElementById('stat-unresolved').textContent = unresolved;
     document.getElementById('stat-resolve-rate').textContent = total > 0 ? Math.round(resolved/total*100) + '%' : '—';
   }
+
+  // ---- Add-mistake modal (opened from "+ Add wrong questions" inside a subject view) ----
+  document.getElementById('add-mistake-btn').addEventListener('click', ()=>{
+    if(currentSubject){
+      document.getElementById('f-subject').value = currentSubject;
+    }
+    document.getElementById('add-mistake-overlay').classList.remove('hidden');
+  });
+  document.getElementById('add-mistake-close').addEventListener('click', ()=>{
+    document.getElementById('add-mistake-overlay').classList.add('hidden');
+  });
 
   // ---- Save a new mistake ----
   document.getElementById('save-mistake-btn').addEventListener('click', async ()=>{
@@ -823,6 +915,7 @@
       });
       showToast('Mistake saved');
       resetLogForm();
+      document.getElementById('add-mistake-overlay').classList.add('hidden');
     } catch(err){
       console.error('[Firestore]', err.message);
       showToast('Could not save: ' + err.message, true);
@@ -845,12 +938,6 @@
   }
 
   // ---- Retry queue rendering from real data ----
-  const SUBJECT_KEY = {
-    'Fixed Income':'fixed-income', 'Equity Investments':'equity', 'Financial Statement Analysis':'fra',
-    'Quantitative Methods':'quant', 'Economics':'economics', 'Ethics & Professional Standards':'ethics',
-    'Portfolio Management':'portfolio', 'Derivatives':'derivatives', 'Alternative Investments':'alt-investments',
-    'Corporate Issuers':'corporate'
-  };
   const ERROR_LABEL = { conceptual:'Conceptual gap', calculation:'Calculation', misread:'Misread question', trap:'Trap / distractor', forgot:'Forgot' };
 
   function formatDue(nextReviewAt){
@@ -874,10 +961,14 @@
   }
 
   function renderRetryQueue(){
+    if(currentView !== 'subject' || !currentSubject) return;
+
     const list = document.getElementById('queue-list');
     const showResolved = document.getElementById('show-resolved-only') ? document.getElementById('show-resolved-only').checked : false;
 
-    const unresolved = allMistakes.filter(m=> m.status !== 'resolved');
+    const bySubject = allMistakes.filter(m=> m.subject === currentSubject);
+
+    const unresolved = bySubject.filter(m=> m.status !== 'resolved');
     unresolved.sort((a,b)=>{
       const da = a.nextReviewAt && a.nextReviewAt.toDate ? a.nextReviewAt.toDate().getTime() : 0;
       const db = b.nextReviewAt && b.nextReviewAt.toDate ? b.nextReviewAt.toDate().getTime() : 0;
@@ -886,7 +977,7 @@
 
     let resolved = [];
     if(showResolved){
-      resolved = allMistakes.filter(m=> m.status === 'resolved');
+      resolved = bySubject.filter(m=> m.status === 'resolved');
       resolved.sort((a,b)=>{
         const lastA = (a.retryHistory||[]).length ? new Date(a.retryHistory[a.retryHistory.length-1].date).getTime() : 0;
         const lastB = (b.retryHistory||[]).length ? new Date(b.retryHistory[b.retryHistory.length-1].date).getTime() : 0;
@@ -906,7 +997,6 @@
     list.innerHTML = active.map(m=>{
       const isResolved = m.status === 'resolved';
       const due = isResolved ? { label:'✓ Đã master', overdue:false } : formatDue(m.nextReviewAt);
-      const subjectKey = SUBJECT_KEY[m.subject] || 'other';
       const typesAttr = (m.errorTypes||[]).join(' ');
       const preview = stripHtml(m.questionHtml).slice(0, 110) || '(no question text)';
       const tagsHtml = (m.errorTypes||[]).map(t=>`<span class="mini-tag">${ERROR_LABEL[t]||t}</span>`).join('');
@@ -916,10 +1006,9 @@
       const repeatTagHtml = isRepeatOffender ? `<span class="mini-tag repeat-tag">⚠ Sai lặp lại</span>` : '';
       const detailsLabel = history.length > 0 ? `Details (${history.length})` : 'Details';
       return `
-        <div class="queue-item ${due.overdue?'overdue':''} ${isResolved?'resolved':''}" data-id="${m.id}" data-subject="${subjectKey}" data-types="${typesAttr}" data-overdue="${due.overdue}" data-resolved="${isResolved}">
+        <div class="queue-item ${due.overdue?'overdue':''} ${isResolved?'resolved':''}" data-id="${m.id}" data-types="${typesAttr}" data-overdue="${due.overdue}" data-resolved="${isResolved}">
           <div class="status-bar"></div>
           <div class="meta">
-            <span class="subject-badge">${(m.subject||'').toUpperCase()}</span>
             <div class="q-text">${preview}${preview.length>=110?'...':''}</div>
             <div class="err-tags">${tagsHtml}${repeatTagHtml}</div>
           </div>
@@ -1188,16 +1277,6 @@
     `;
     document.getElementById('rs-finish-btn').addEventListener('click', closeRetrySession);
   }
-
-  // ---- Tab switching ----
-  document.querySelectorAll('nav.tabs button').forEach(btn=>{
-    btn.addEventListener('click', ()=>{
-      document.querySelectorAll('nav.tabs button').forEach(b=>b.classList.remove('active'));
-      document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
-      btn.classList.add('active');
-      document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
-    });
-  });
 
   // ============================================================
   // QUESTION EDITOR: paste sanitizing + bold/italic + table widget
@@ -1581,10 +1660,10 @@
     });
   });
 
-  // ---- Retry queue filters (subject + error type, combined) ----
+  // ---- Retry queue filters (error type + overdue, subject scoping now comes from the sidebar) ----
   const emptyState = document.getElementById('empty-state');
   const overdueOnlyBox = document.getElementById('overdue-only');
-  const filterState = { subject: 'all', error: 'all' };
+  const filterState = { error: 'all' };
 
   function applyQueueFilters(){
     const overdueOnly = overdueOnlyBox.checked;
@@ -1593,7 +1672,6 @@
 
     queueItems.forEach(item=>{
       let show = true;
-      if(filterState.subject !== 'all' && item.dataset.subject !== filterState.subject) show = false;
       if(filterState.error !== 'all'){
         const types = item.dataset.types.split(' ');
         if(!types.includes(filterState.error)) show = false;
@@ -1632,11 +1710,7 @@
   // ════════════════════════════════════════════════
   // ANALYTICS + SUGGESTIONS — computed from real mistakes
   // ════════════════════════════════════════════════
-  const ANALYTICS_SUBJECTS = [
-    'Fixed Income','Equity Investments','Financial Statement Analysis','Quantitative Methods',
-    'Economics','Ethics & Professional Standards','Portfolio Management','Derivatives',
-    'Alternative Investments','Corporate Issuers'
-  ];
+  const ANALYTICS_SUBJECTS = SUBJECTS;
   const ERR_TYPES = ['conceptual','calculation','misread','trap','forgot'];
   const ERR_TYPE_FULL = { conceptual:'Conceptual gap', calculation:'Calculation error', misread:'Misread question', trap:'Trap / distractor', forgot:'Forgot' };
 
@@ -1864,6 +1938,45 @@
       </div>
     `).join('');
   }
+
+  // ---- Home dashboard: "Cần retry hôm nay" — overdue + due-within-24h across all subjects ----
+  function renderDueToday(){
+    const container = document.getElementById('due-today-list');
+    if(!container) return;
+
+    const now = Date.now();
+    const candidates = allMistakes.filter(m=>
+      m.status !== 'resolved' && m.nextReviewAt && m.nextReviewAt.toDate &&
+      m.nextReviewAt.toDate().getTime() <= now + 24*60*60*1000
+    );
+    candidates.sort((a,b)=> a.nextReviewAt.toDate().getTime() - b.nextReviewAt.toDate().getTime());
+    const top = candidates.slice(0, 8);
+
+    if(top.length === 0){
+      container.innerHTML = `<div class="history-empty">Không có câu nào cần retry hôm nay 🎉</div>`;
+      return;
+    }
+
+    container.innerHTML = top.map(m=>{
+      const due = formatDue(m.nextReviewAt);
+      const preview = stripHtml(m.questionHtml).slice(0, 90) || '(no question text)';
+      return `
+        <div class="due-today-row" data-id="${m.id}">
+          <span class="subject-badge">${(m.subject||'').toUpperCase()}</span>
+          <span class="dt-text">${preview}${preview.length>=90?'...':''}</span>
+          <span class="due ${due.overdue?'urgent':''}">${due.label}</span>
+          <button class="btn-mini" data-action="quick-retry">Retry</button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  document.getElementById('due-today-list').addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-action="quick-retry"]');
+    if(!btn) return;
+    const row = btn.closest('.due-today-row');
+    startRetrySession([row.dataset.id]);
+  });
 </script>
 
 </body>
