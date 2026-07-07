@@ -95,7 +95,12 @@
     padding:16px 4px; border-bottom:1px solid var(--line);
   }
   .module-row:first-child{ border-top:1px solid var(--line); }
-  .module-row .module-name{ font-size:1rem; color:var(--text); font-weight:600; margin-bottom:4px; }
+  .module-row .module-name{ font-size:1rem; color:var(--text); font-weight:600; margin-bottom:4px; display:inline-block; }
+  .module-row .module-name[contenteditable="true"]{
+    cursor:text; border-radius:4px; padding:2px 6px; margin:-2px -6px 2px; outline:none;
+  }
+  .module-row .module-name[contenteditable="true"]:hover{ background:var(--surface-2); box-shadow:0 0 0 1px var(--line); }
+  .module-row .module-name[contenteditable="true"]:focus{ background:var(--surface-2); box-shadow:0 0 0 1px var(--accent); }
   .module-row .module-sub{ font-size:.8rem; color:var(--text-dim); }
   .module-row .module-right{ display:flex; align-items:center; gap:14px; flex-shrink:0; }
   .module-row .module-status{ font-size:.8rem; color:var(--text-dim); white-space:nowrap; }
@@ -460,7 +465,12 @@
   .rs-close:hover{ border-color:var(--accent); color:var(--text); }
   .rs-subject{ font-size:.76rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-bottom:16px; text-align:center; }
   .rs-question{ font-size:1.3rem; color:var(--text); line-height:1.6; margin-bottom:22px; text-align:center; }
-  .rs-footer{ display:flex; justify-content:center; margin-top:22px; }
+  .rs-footer{ display:flex; justify-content:center; gap:12px; margin-top:22px; }
+  .rs-prev-btn{
+    background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:5px;
+    padding:13px 26px; font-weight:700; font-size:.95rem; cursor:pointer; font-family:var(--font);
+  }
+  .rs-prev-btn:hover{ border-color:var(--accent); color:var(--text); }
   .rs-next-btn{
     background:var(--text); color:var(--bg); border:none; border-radius:5px;
     padding:13px 32px; font-weight:700; font-size:.95rem; cursor:pointer; font-family:var(--font);
@@ -1307,10 +1317,11 @@
       const stats = moduleMap[name];
       const resolvedCount = stats.total - stats.unresolved;
       const resolveRate = Math.round(resolvedCount / stats.total * 100);
+      const isUncategorized = name === UNCATEGORIZED;
       return `
         <div class="module-row" data-module="${name}">
           <div>
-            <div class="module-name">${name}</div>
+            <div class="module-name"${isUncategorized ? '' : ' contenteditable="true" spellcheck="false" title="Click to rename this module"'}>${name}</div>
             <div class="module-sub">${stats.total} wrong question${stats.total>1?'s':''} logged</div>
           </div>
           <div class="module-right">
@@ -1327,6 +1338,56 @@
     document.getElementById('retry-course-count').textContent = bySubject.length;
     courseBar.classList.remove('hidden');
   }
+
+  // Renames a module across every mistake in the current subject that carries the old name.
+  // Triggered by editing a module name inline in the sidebar (see the focusout/keydown
+  // handlers below) — additive to existing data, only the `module` field is touched.
+  async function renameModule(oldName, newName){
+    const affected = allMistakes.filter(m=> m.subject === currentSubject && (m.module || UNCATEGORIZED) === oldName);
+    if(affected.length === 0) return;
+    try{
+      const batch = fbDb.batch();
+      affected.forEach(m=>{
+        batch.update(mistakesCollection().doc(m.id), { module: newName });
+      });
+      await batch.commit();
+      affected.forEach(m=> m.module = newName);
+      showToast('Module renamed');
+    } catch(err){
+      console.error('[Firestore]', err.message);
+      showToast('Could not rename module: ' + err.message, true);
+    }
+    renderModuleList();
+  }
+
+  // Commit the rename when the editable name loses focus (click away or Tab).
+  document.getElementById('module-list').addEventListener('focusout', (e)=>{
+    const nameEl = e.target.closest('.module-name[contenteditable="true"]');
+    if(!nameEl) return;
+    const row = nameEl.closest('.module-row');
+    const oldName = row.dataset.module;
+    const newName = nameEl.textContent.trim();
+    if(!newName || newName === oldName){
+      nameEl.textContent = oldName;
+      return;
+    }
+    renameModule(oldName, newName);
+  });
+
+  // Enter commits the edit (like a form submit); Escape cancels and reverts the text.
+  document.getElementById('module-list').addEventListener('keydown', (e)=>{
+    const nameEl = e.target.closest('.module-name[contenteditable="true"]');
+    if(!nameEl) return;
+    if(e.key === 'Enter'){
+      e.preventDefault();
+      nameEl.blur();
+    } else if(e.key === 'Escape'){
+      e.preventDefault();
+      const row = nameEl.closest('.module-row');
+      nameEl.textContent = row.dataset.module;
+      nameEl.blur();
+    }
+  });
 
   // Fisher–Yates shuffle — used for both per-module Retry and Retry this Course
   function shuffleArray(arr){
@@ -2437,6 +2498,28 @@
 
   // Like bindRetryOptions, but never reveals correct/wrong — used for Retry this Course,
   // where feedback is withheld until the whole course is finished.
+  // Renders a previously-answered question in a non-interactive state — used when the user
+  // navigates Back to a question they've already answered. Never changes the recorded answer.
+  function bindRetryOptionsReadOnly(container, chosenLetter, revealCorrectness){
+    const optsWrap = container.querySelector('.retry-options');
+    const explEl = container.querySelector('.retry-explanation');
+    if(!optsWrap) return;
+    optsWrap.classList.add('answered');
+    const correct = optsWrap.dataset.correct;
+    const chosenEl = optsWrap.querySelector(`.retry-option[data-value="${chosenLetter}"]`);
+    if(revealCorrectness){
+      const wasCorrect = chosenLetter === correct;
+      if(chosenEl) chosenEl.classList.add(wasCorrect ? 'opt-correct' : 'opt-wrong');
+      if(!wasCorrect){
+        const correctEl = optsWrap.querySelector(`.retry-option[data-value="${correct}"]`);
+        if(correctEl) correctEl.classList.add('opt-correct');
+      }
+      if(explEl) explEl.style.display = 'block';
+    } else {
+      if(chosenEl) chosenEl.classList.add('quiz-answer-neutral');
+    }
+  }
+
   function bindRetryOptionsNeutral(container, mistake, onAnswered){
     const optsWrap = container.querySelector('.retry-options');
     if(!optsWrap) return;
@@ -2457,6 +2540,7 @@
     const total = quizState.ids.length;
     const id = quizState.ids[quizState.index];
     const mistake = allMistakes.find(m=> m.id === id);
+    const existingAnswer = quizState.answers.find(a=> a.id === id);
 
     document.getElementById('quiz-progress-text').textContent = `Question ${quizState.index + 1} of ${total}`;
     document.getElementById('quiz-progress-fill').style.width = Math.round(quizState.index / total * 100) + '%';
@@ -2468,26 +2552,39 @@
           <span class="quiz-q-badge">${quizState.index + 1}</span>
           <span class="quiz-q-meta">Multiple Choice</span>
         </div>
-        <div class="rs-subject">${(mistake.subject||'').toUpperCase()}${mistake.module ? ' · ' + mistake.module : ''}</div>
         <div class="rs-question">${mistake.questionHtml}</div>
         ${renderInteractiveOptionsHtml(mistake)}
         <div class="rs-footer">
-          <button class="rs-next-btn" id="quiz-next-btn" disabled>${quizState.index === total - 1 ? 'Finish' : 'Next'}</button>
+          ${quizState.index > 0 ? `<button class="rs-prev-btn" id="quiz-prev-btn">Previous</button>` : ''}
+          <button class="rs-next-btn" id="quiz-next-btn" ${existingAnswer ? '' : 'disabled'}>${quizState.index === total - 1 ? 'Finish' : 'Next'}</button>
         </div>
       </div>
     `;
 
-    quizState.questionStartedAt = Date.now();
     const cardEl = body.querySelector('.quiz-card');
-    const onAnswered = (wasCorrect, chosen)=>{
-      recordQuizAnswer(id, wasCorrect, chosen);
-      document.getElementById('quiz-next-btn').disabled = false;
-    };
 
-    if(quizState.revealImmediately){
-      bindRetryOptions(cardEl, mistake, onAnswered);
+    if(existingAnswer){
+      // Revisiting a question we've already answered — show it read-only, never re-recorded.
+      bindRetryOptionsReadOnly(cardEl, existingAnswer.chosen, quizState.revealImmediately);
     } else {
-      bindRetryOptionsNeutral(cardEl, mistake, onAnswered);
+      quizState.questionStartedAt = Date.now();
+      const onAnswered = (wasCorrect, chosen)=>{
+        recordQuizAnswer(id, wasCorrect, chosen);
+        document.getElementById('quiz-next-btn').disabled = false;
+      };
+      if(quizState.revealImmediately){
+        bindRetryOptions(cardEl, mistake, onAnswered);
+      } else {
+        bindRetryOptionsNeutral(cardEl, mistake, onAnswered);
+      }
+    }
+
+    const prevBtn = document.getElementById('quiz-prev-btn');
+    if(prevBtn){
+      prevBtn.addEventListener('click', ()=>{
+        quizState.index--;
+        renderQuizQuestion();
+      });
     }
 
     document.getElementById('quiz-next-btn').addEventListener('click', ()=>{
