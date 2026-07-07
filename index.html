@@ -465,7 +465,8 @@
   .rs-close:hover{ border-color:var(--accent); color:var(--text); }
   .rs-subject{ font-size:.76rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:.06em; margin-bottom:16px; text-align:center; }
   .rs-question{ font-size:1.3rem; color:var(--text); line-height:1.6; margin-bottom:22px; text-align:center; }
-  .rs-footer{ display:flex; justify-content:center; gap:12px; margin-top:22px; }
+  .rs-footer{ display:flex; justify-content:flex-start; align-items:center; gap:12px; margin-top:22px; }
+  .rs-footer .rs-next-btn{ margin-left:auto; }
   .rs-prev-btn{
     background:none; border:1px solid var(--line); color:var(--text-dim); border-radius:5px;
     padding:13px 26px; font-weight:700; font-size:.95rem; cursor:pointer; font-family:var(--font);
@@ -758,14 +759,14 @@
         </div>
         <div class="field">
           <label>Module</label>
-          <input type="text" id="f-module" list="module-suggestions" placeholder="e.g. Module 2: Analyzing Income Statements">
+          <input type="text" id="f-module" list="module-suggestions" autocomplete="off" placeholder="e.g. Module 2: Analyzing Income Statements">
           <datalist id="module-suggestions"></datalist>
         </div>
       </div>
 
       <div class="field">
         <label>Topic / LOS</label>
-        <input type="text" id="f-topic" placeholder="e.g. Bond convexity & duration">
+        <input type="text" id="f-topic" autocomplete="off" placeholder="e.g. Bond convexity & duration">
       </div>
 
       <div class="field">
@@ -789,17 +790,17 @@
             <span>Option text</span><span>Your pick</span><span>Correct</span>
           </div>
           <div class="option-row" data-letter="A">
-            <div class="option-left"><span class="opt-letter">A</span><input type="text" id="f-opt-a" placeholder="Option A"></div>
+            <div class="option-left"><span class="opt-letter">A</span><input type="text" id="f-opt-a" autocomplete="off" placeholder="Option A"></div>
             <div class="radio-cell"><span class="radio-dot" data-group="chosen" data-value="A"></span></div>
             <div class="radio-cell"><span class="radio-dot" data-group="correct" data-value="A"></span></div>
           </div>
           <div class="option-row" data-letter="B">
-            <div class="option-left"><span class="opt-letter">B</span><input type="text" id="f-opt-b" placeholder="Option B"></div>
+            <div class="option-left"><span class="opt-letter">B</span><input type="text" id="f-opt-b" autocomplete="off" placeholder="Option B"></div>
             <div class="radio-cell"><span class="radio-dot" data-group="chosen" data-value="B"></span></div>
             <div class="radio-cell"><span class="radio-dot" data-group="correct" data-value="B"></span></div>
           </div>
           <div class="option-row" data-letter="C">
-            <div class="option-left"><span class="opt-letter">C</span><input type="text" id="f-opt-c" placeholder="Option C"></div>
+            <div class="option-left"><span class="opt-letter">C</span><input type="text" id="f-opt-c" autocomplete="off" placeholder="Option C"></div>
             <div class="radio-cell"><span class="radio-dot" data-group="chosen" data-value="C"></span></div>
             <div class="radio-cell"><span class="radio-dot" data-group="correct" data-value="C"></span></div>
           </div>
