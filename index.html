@@ -880,6 +880,17 @@
   </div>
   <div class="quiz-progress-track"><div class="quiz-progress-fill" id="quiz-progress-fill"></div></div>
   <div class="quiz-body" id="quiz-body"></div>
+
+  <div class="rs-overlay hidden" id="quiz-confirm-overlay">
+    <div class="rs-modal confirm-modal">
+      <div class="confirm-title">Some questions are unanswered</div>
+      <div class="confirm-body" id="quiz-confirm-body"></div>
+      <div class="confirm-actions">
+        <button class="btn-mini" id="quiz-confirm-review-btn">Review</button>
+        <button class="btn-mini btn-danger" id="quiz-confirm-finish-btn">Finish</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast"></div>
@@ -2520,18 +2531,24 @@
     }
   }
 
-  function bindRetryOptionsNeutral(container, mistake, onAnswered){
+  // Used for Retry this Course, where feedback (correct/wrong) is withheld until Finish.
+  // Because nothing is revealed, the answer can always be changed — including on questions
+  // revisited via Previous — so this never locks after the first selection.
+  function bindRetryOptionsNeutral(container, mistake, onAnswered, preselected){
     const optsWrap = container.querySelector('.retry-options');
     if(!optsWrap) return;
+    if(preselected){
+      const preEl = optsWrap.querySelector(`.retry-option[data-value="${preselected}"]`);
+      if(preEl) preEl.classList.add('quiz-answer-neutral');
+    }
     optsWrap.addEventListener('click', (e)=>{
-      if(optsWrap.classList.contains('answered')) return;
       const optionEl = e.target.closest('.retry-option');
       if(!optionEl) return;
-      optsWrap.classList.add('answered');
+      optsWrap.querySelectorAll('.retry-option').forEach(el=> el.classList.remove('quiz-answer-neutral'));
+      optionEl.classList.add('quiz-answer-neutral');
       const chosen = optionEl.dataset.value;
       const correct = optsWrap.dataset.correct;
       const wasCorrect = chosen === correct;
-      optionEl.classList.add('quiz-answer-neutral');
       onAnswered(wasCorrect, chosen);
     });
   }
@@ -2556,27 +2573,27 @@
         ${renderInteractiveOptionsHtml(mistake)}
         <div class="rs-footer">
           ${quizState.index > 0 ? `<button class="rs-prev-btn" id="quiz-prev-btn">Previous</button>` : ''}
-          <button class="rs-next-btn" id="quiz-next-btn" ${existingAnswer ? '' : 'disabled'}>${quizState.index === total - 1 ? 'Finish' : 'Next'}</button>
+          <button class="rs-next-btn" id="quiz-next-btn">${quizState.index === total - 1 ? 'Finish' : 'Next'}</button>
         </div>
       </div>
     `;
 
     const cardEl = body.querySelector('.quiz-card');
+    quizState.questionStartedAt = Date.now();
+    const onAnswered = (wasCorrect, chosen)=> recordQuizAnswer(id, wasCorrect, chosen);
 
-    if(existingAnswer){
-      // Revisiting a question we've already answered — show it read-only, never re-recorded.
-      bindRetryOptionsReadOnly(cardEl, existingAnswer.chosen, quizState.revealImmediately);
-    } else {
-      quizState.questionStartedAt = Date.now();
-      const onAnswered = (wasCorrect, chosen)=>{
-        recordQuizAnswer(id, wasCorrect, chosen);
-        document.getElementById('quiz-next-btn').disabled = false;
-      };
-      if(quizState.revealImmediately){
-        bindRetryOptions(cardEl, mistake, onAnswered);
+    if(quizState.revealImmediately){
+      // Module/single retry: once a question is answered, correct/wrong is revealed and
+      // locked — revisiting it via Previous only shows that result, never re-answerable.
+      if(existingAnswer){
+        bindRetryOptionsReadOnly(cardEl, existingAnswer.chosen, true);
       } else {
-        bindRetryOptionsNeutral(cardEl, mistake, onAnswered);
+        bindRetryOptions(cardEl, mistake, onAnswered);
       }
+    } else {
+      // Retry this Course: feedback is withheld until Finish, so every question stays
+      // editable — including ones already answered when revisited via Previous.
+      bindRetryOptionsNeutral(cardEl, mistake, onAnswered, existingAnswer ? existingAnswer.chosen : null);
     }
 
     const prevBtn = document.getElementById('quiz-prev-btn');
@@ -2589,7 +2606,7 @@
 
     document.getElementById('quiz-next-btn').addEventListener('click', ()=>{
       if(quizState.index === total - 1){
-        finishQuiz();
+        attemptFinishQuiz();
       } else {
         quizState.index++;
         renderQuizQuestion();
@@ -2597,9 +2614,46 @@
     });
   }
 
+  // Finishing is free navigation now, so some questions may be unanswered. If so, prompt
+  // the person to either jump to the first unanswered question (Review) or finish anyway
+  // (Finish — unanswered questions count as 0 points), mirroring the CFA LES practice flow.
+  function attemptFinishQuiz(){
+    const unansweredIds = quizState.ids.filter(qid=> !quizState.answers.some(a=> a.id === qid));
+    if(unansweredIds.length === 0){
+      finishQuiz();
+      return;
+    }
+    document.getElementById('quiz-confirm-body').textContent =
+      `You have ${unansweredIds.length} unanswered question${unansweredIds.length>1?'s':''}. ` +
+      `Choosing Finish now will score ${unansweredIds.length>1?'them':'it'} as 0 points.`;
+    document.getElementById('quiz-confirm-overlay').classList.remove('hidden');
+  }
+
+  document.getElementById('quiz-confirm-review-btn').addEventListener('click', ()=>{
+    document.getElementById('quiz-confirm-overlay').classList.add('hidden');
+    const firstUnansweredId = quizState.ids.find(qid=> !quizState.answers.some(a=> a.id === qid));
+    if(!firstUnansweredId) return;
+    quizState.index = quizState.ids.indexOf(firstUnansweredId);
+    renderQuizQuestion();
+  });
+
+  document.getElementById('quiz-confirm-finish-btn').addEventListener('click', ()=>{
+    document.getElementById('quiz-confirm-overlay').classList.add('hidden');
+    finishQuiz();
+  });
+
   function recordQuizAnswer(id, wasCorrect, chosen){
     const timeMs = Date.now() - quizState.questionStartedAt;
-    quizState.answers.push({ id, wasCorrect, timeMs, chosen });
+    const existing = quizState.answers.find(a=> a.id === id);
+    if(existing){
+      // Course-mode questions can be re-answered after navigating back — update in place
+      // rather than recording a duplicate entry.
+      existing.wasCorrect = wasCorrect;
+      existing.chosen = chosen;
+      existing.timeMs = timeMs;
+    } else {
+      quizState.answers.push({ id, wasCorrect, timeMs, chosen });
+    }
     if(quizState.revealImmediately){
       // Single-question and module retries update Firestore right away, same as before.
       submitRetryResult(id, wasCorrect);
@@ -2621,26 +2675,31 @@
   // during the run (i.e. Retry this Course), since module/single retries already reveal
   // correct/wrong immediately as each question is answered.
   function buildQuizReviewHtml(){
-    const items = quizState.answers.map((a, idx)=>{
-      const mistake = allMistakes.find(m=> m.id === a.id);
+    const items = quizState.ids.map((qid, idx)=>{
+      const mistake = allMistakes.find(m=> m.id === qid);
       if(!mistake) return '';
+      const a = quizState.answers.find(x=> x.id === qid); // undefined if left unanswered
       const opts = mistake.options || {};
       const correct = mistake.correctAnswer || '';
+      const chosen = a ? a.chosen : null;
       const optionsHtml = ['A','B','C'].map(letter=>{
         if(!opts[letter] && opts[letter] !== '') return '';
         const isCorrect = letter === correct;
-        const isChosenWrong = letter === a.chosen && letter !== correct;
+        const isChosenWrong = letter === chosen && letter !== correct;
         let cls = '';
         let icon = '';
         if(isCorrect){ cls = 'opt-correct'; icon = '<span class="qri-icon correct">✓</span>'; }
         else if(isChosenWrong){ cls = 'opt-wrong'; icon = '<span class="qri-icon wrong">✕</span>'; }
         return `<div class="qri-option ${cls}">${icon}<span>${letter}. ${opts[letter]||''}</span></div>`;
       }).join('');
+      const metaText = a
+        ? `Multiple Choice · ${a.wasCorrect ? 1 : 0} / 1 point`
+        : `Multiple Choice · Not answered · 0 / 1 point`;
       return `
         <div class="quiz-review-item">
           <div class="qri-header">
             <span class="qri-badge">${idx + 1}</span>
-            <span class="qri-meta">Multiple Choice · ${a.wasCorrect ? 1 : 0} / 1 point</span>
+            <span class="qri-meta">${metaText}</span>
           </div>
           <div class="qri-question">${mistake.questionHtml}</div>
           <div class="qri-options">${optionsHtml}</div>
@@ -2659,11 +2718,14 @@
   }
 
   async function finishQuiz(){
-    const total = quizState.answers.length;
+    // total counts every question in the set — unanswered ones score 0 points but still
+    // count toward the total, matching how CFA LES practice sessions score skipped questions.
+    const total = quizState.ids.length;
+    const answeredCount = quizState.answers.length;
     const correctCount = quizState.answers.filter(a=> a.wasCorrect).length;
     const percent = total > 0 ? Math.round(correctCount / total * 100) : 0;
     const totalTimeMs = quizState.answers.reduce((sum,a)=> sum + a.timeMs, 0);
-    const avgTimeMs = total > 0 ? totalTimeMs / total : 0;
+    const avgTimeMs = answeredCount > 0 ? totalTimeMs / answeredCount : 0;
 
     document.getElementById('quiz-progress-text').textContent = 'Complete';
     document.getElementById('quiz-progress-fill').style.width = '100%';
@@ -2697,8 +2759,24 @@
       </div>
     `;
 
-    if(!quizState.revealImmediately){
-      await submitCourseBatch(quizState.answers.map(a=> ({ id: a.id, wasCorrect: a.wasCorrect })));
+    // Unanswered (skipped) questions still need to advance the spaced-repetition schedule
+    // as a wrong attempt. Already-answered module/single questions were submitted the moment
+    // they were answered, so only the skipped ones need a batch write here for that mode;
+    // Retry this Course never submits until now, so everything goes in the one batch.
+    const answeredIds = new Set(quizState.answers.map(a=> a.id));
+    const unansweredEntries = quizState.ids
+      .filter(qid=> !answeredIds.has(qid))
+      .map(qid=> ({ id: qid, wasCorrect: false }));
+
+    if(quizState.revealImmediately){
+      if(unansweredEntries.length > 0){
+        await submitCourseBatch(unansweredEntries);
+      }
+    } else {
+      const allEntries = quizState.answers
+        .map(a=> ({ id: a.id, wasCorrect: a.wasCorrect }))
+        .concat(unansweredEntries);
+      await submitCourseBatch(allEntries);
     }
 
     document.getElementById('quiz-close-btn').addEventListener('click', ()=> window.close());
